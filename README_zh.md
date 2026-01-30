@@ -233,17 +233,39 @@ export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 
 ## 评测
 
-```python
-from evaluation import evaluate_answer, compute_accuracy
+我们在三个基准数据集上评测：**LoCoMo**、**LongMemEval** 和 **PerLTQA**。
 
-results = []
-for qa in questions:
-    answer = memory.generate_answer(qa['question'], user_id=conv_id)
-    correct = evaluate_answer(qa['question'], qa['answer'], answer, client)
-    results.append({'correct': correct, 'type': qa['type']})
+```bash
+# 在LoCoMo上评测（单个对话）
+python -m eval.runner \
+    --dataset locomo \
+    --conv-id conv-26 \
+    --model claude-4.5-sonnet \
+    --judge-model gpt-4.1 \
+    --mode full
 
-print(compute_accuracy(results))  # {'overall': 0.85, 'single_hop': 0.90, ...}
+# 在LongMemEval上评测
+python -m eval.runner \
+    --dataset longmemeval \
+    --sample-id sample_001 \
+    --model claude-4.5-sonnet \
+    --judge-model gpt-4.1
+
+# 在PerLTQA上评测
+python -m eval.runner \
+    --dataset perltqa \
+    --character-id char_alice \
+    --model claude-4.5-sonnet \
+    --judge-model gpt-4.1
 ```
+
+**关键选项：**
+- `--mode build`：仅构建记忆（保存到磁盘）
+- `--mode answer`：仅回答（加载已保存的记忆）
+- `--mode full`：构建+回答（默认）
+- `--sessions N`：限制前N个会话
+- `--questions N`：限制前N个问题
+- `--verbose`：显示详细输出
 
 ## 引用
 

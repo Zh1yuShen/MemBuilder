@@ -233,17 +233,39 @@ export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 
 ## Evaluation
 
-```python
-from evaluation import evaluate_answer, compute_accuracy
+We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
 
-results = []
-for qa in questions:
-    answer = memory.generate_answer(qa['question'], user_id=conv_id)
-    correct = evaluate_answer(qa['question'], qa['answer'], answer, client)
-    results.append({'correct': correct, 'type': qa['type']})
+```bash
+# Run evaluation on LoCoMo (single conversation)
+python -m eval.runner \
+    --dataset locomo \
+    --conv-id conv-26 \
+    --model claude-4.5-sonnet \
+    --judge-model gpt-4.1 \
+    --mode full
 
-print(compute_accuracy(results))  # {'overall': 0.85, 'single_hop': 0.90, ...}
+# Run evaluation on LongMemEval
+python -m eval.runner \
+    --dataset longmemeval \
+    --sample-id sample_001 \
+    --model claude-4.5-sonnet \
+    --judge-model gpt-4.1
+
+# Run evaluation on PerLTQA
+python -m eval.runner \
+    --dataset perltqa \
+    --character-id char_alice \
+    --model claude-4.5-sonnet \
+    --judge-model gpt-4.1
 ```
+
+**Key options:**
+- `--mode build`: Build memory only (save to disk)
+- `--mode answer`: Answer only (load saved memory)
+- `--mode full`: Build + Answer (default)
+- `--sessions N`: Limit to first N sessions
+- `--questions N`: Limit to first N questions
+- `--verbose`: Show detailed output
 
 ## Citation
 
