@@ -98,11 +98,6 @@ llamafactory-cli train \
     --deepspeed ds_z2_config.json
 ```
 
-**SFT数据格式** (`data/sft_example.json`)：
-```json
-{"instruction": "You are the Core Memory Manager...", "input": "", "output": "```json\n{\"operation\": \"APPEND\", \"content\": \"...\"}\n```"}
-```
-
 ---
 
 ### 阶段2：ADRPO（Attributed Dense Reward Policy Optimization，归因密集奖励策略优化）
@@ -127,24 +122,9 @@ TRAIN_DATA=data/memory_rl_train.parquet \
 bash scripts/run_memory_grpo_multinode.sh
 ```
 
-**RL数据格式** (`data/verl_training_example.parquet`)：
-| prompt | ability | reward_model | data_source | meta |
-|--------|---------|--------------|-------------|------|
-| 系统提示 + 消息 | core/episodic/... | membuilder | longmemeval | {questions, expert_actions, ...} |
-
 ---
 
 ## 配置说明
-
-### 环境变量
-
-| 变量 | 必需 | 说明 |
-|------|------|------|
-| `OPENAI_API_KEY` | 是 | LLM调用的API密钥 |
-| `OPENAI_BASE_URL` | 否 | 自定义API端点 |
-| `MODEL_PATH` | RL训练 | SFT模型路径 |
-| `TRAIN_DATA` | RL训练 | parquet文件路径 |
-| `MEMBUILDER_REWARD_CONFIG_PATH` | 否 | 自定义奖励配置 |
 
 ### 奖励配置 (`training/reward_server/reward_config.json`)
 
