@@ -2,13 +2,13 @@
 
 [中文版](README_zh.md) | English
 
-**Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Reward**
+**Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Rewards**
 
 ## What is MemBuilder?
 
-MemBuilder trains LLMs to build **multi-dimensional long-term memory** from conversations. It uses **ADRPO** (Attributed Dense Reward Policy Optimization) to solve two problems:
-- Sparse rewards → Dense session-level QA rewards
-- Multi-agent attribution → Contribution-aware gradient weighting
+MemBuilder trains LLMs to build **multi-dimensional long-term memory** from conversations. It uses **ADRPO** (Attributed Dense Reward Policy Optimization) to solve two key challenges:
+- **Sparse Trajectory-Level Rewards**: We employ synthetic session-level QA to provide dense intermediate rewards
+- **Multi-Dimensional Memory Attribution**: We introduce contribution-aware gradient weighting based on each component's downstream impact
 
 ## Memory Architecture
 
@@ -17,7 +17,7 @@ MemBuilder trains LLMs to build **multi-dimensional long-term memory** from conv
 | **Core** | User basic information (persistent) | APPEND, REPLACE, REWRITE | "Name: Sarah. Job: Engineer." |
 | **Episodic** | Time-related event memories | ADD, UPDATE, MERGE | "2024-03-15: Got promoted" |
 | **Semantic** | Knowledge about entities and concepts | ADD, UPDATE, SKIP | "Rust - User's favorite language" |
-| **Procedural** | User preferences and habits | ADD, UPDATE | "Prefers brief responses" |
+| **Procedural** | Step-by-step processes and workflows | ADD, UPDATE | "Morning routine: 1. Coffee 2. Email 3. Standup" |
 
 ## Quick Start
 
@@ -85,7 +85,7 @@ llamafactory-cli train \
     --model_name_or_path Qwen/Qwen3-4B --stage sft --do_train \
     --dataset memory_building_sft --template qwen3 \
     --cutoff_len 20000 --output_dir saves/membuilder-sft \
-    --learning_rate 5e-7 --num_train_epochs 3 --bf16 \
+    --learning_rate 5e-7 --num_train_epochs 10 --bf16 \
     --deepspeed ds_z2_config.json
 ```
 
@@ -158,7 +158,7 @@ bash scripts/run_memory_grpo_multinode.sh
 |---------|---------|-------------|
 | `SFT_EXPERT_MODEL` | claude-4.5-sonnet | Expert for trajectory generation |
 | `QA_GENERATION_MODEL` | claude-4.5-opus | Expert for synthetic QA |
-| `ANSWER_MODEL` | gpt-4.1-mini | Model for QA answering |
+| `ANSWER_MODEL` | gpt-4.1 | Model for QA answering |
 | `JUDGE_MODEL` | gpt-4.1-mini | LLM Judge for evaluation |
 | `EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
 | `CORE_MEMORY_CHAR_LIMIT` | 5000 | Max chars for core memory |

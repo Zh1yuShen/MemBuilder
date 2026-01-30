@@ -2,13 +2,13 @@
 
 [English](README.md) | 中文版
 
-**基于归因密集奖励的长期记忆构建强化学习框架**
+**基于归因密集奖励的大模型长期记忆构建强化学习框架**
 
 ## MemBuilder是什么？
 
-MemBuilder训练大语言模型从对话中构建**多维度长期记忆**。使用**ADRPO**（归因密集奖励策略优化）解决两个问题：
-- 稀疏奖励 → 密集的会话级QA奖励
-- 多智能体归因 → 贡献感知的梯度加权
+MemBuilder训练大语言模型从对话中构建**多维度长期记忆**。使用**ADRPO**（归因密集奖励策略优化）解决两个关键挑战：
+- **稀疏轨迹级奖励**：通过合成会话级QA提供密集的中间奖励信号
+- **多维记忆归因**：引入基于下游影响的贡献感知梯度加权机制
 
 ## 记忆架构
 
@@ -17,7 +17,7 @@ MemBuilder训练大语言模型从对话中构建**多维度长期记忆**。使
 | **Core** | 用户基本信息（持久化） | APPEND, REPLACE, REWRITE | "姓名：小明。职业：工程师。" |
 | **Episodic** | 时间相关的事件记忆 | ADD, UPDATE, MERGE | "2024-03-15: 升职了" |
 | **Semantic** | 实体和概念的知识 | ADD, UPDATE, SKIP | "Rust - 用户最喜欢的语言" |
-| **Procedural** | 用户偏好和习惯 | ADD, UPDATE | "喜欢简短回复" |
+| **Procedural** | 步骤化流程和工作习惯 | ADD, UPDATE | "晨间流程：1. 咖啡 2. 邮件 3. 站会" |
 
 ## 快速开始
 
@@ -85,7 +85,7 @@ llamafactory-cli train \
     --model_name_or_path Qwen/Qwen3-4B --stage sft --do_train \
     --dataset memory_building_sft --template qwen3 \
     --cutoff_len 20000 --output_dir saves/membuilder-sft \
-    --learning_rate 5e-7 --num_train_epochs 3 --bf16 \
+    --learning_rate 5e-7 --num_train_epochs 10 --bf16 \
     --deepspeed ds_z2_config.json
 ```
 
