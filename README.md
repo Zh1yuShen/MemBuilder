@@ -22,7 +22,16 @@ MemBuilder trains LLMs to build **multi-dimensional long-term memory** from conv
 ## Quick Start
 
 ```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Install LLaMA-Factory (for SFT training)
+pip install llamafactory
+
+# Install veRL (for RL training)
+pip install verl
+
+# Set API key
 export OPENAI_API_KEY="your-key"
 ```
 
@@ -32,24 +41,25 @@ export OPENAI_API_KEY="your-key"
 
 ### Step 0: Generate Expert Trajectories
 
-We use **LongMemEval** as the sole training source. From 500 available dialogues:
-- **50 dialogues** for SFT trajectory collection
-- **50 separate dialogues** for RL training (with synthetic QA pairs)
+We use **LongMemEval** as the sole training source. The data splits are defined in `data/longmemeval/splits/longmemeval_splits.json`:
+- **51 dialogues** (`sft` split) for SFT trajectory collection
+- **50 dialogues** (`rl` split) for RL training (with synthetic QA pairs)
+- **400 dialogues** (`test` split) for held-out evaluation
 
 Use Claude 4.5 Sonnet to generate memory construction trajectories:
 
 ```bash
-# Generate expert trajectories for SFT (50 dialogues, ~2,400 sessions)
+# Generate expert trajectories for SFT (51 dialogues, ~2,400 sessions)
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
-    --subset-file data/longmemeval/splits/sft_50.json \
+    --split sft \
     --output-dir expert_trajectories/longmemeval_sft \
     --expert-model claude-4.5-sonnet
 
-# Generate expert trajectories for RL (separate 50 dialogues)
+# Generate expert trajectories for RL (50 separate dialogues)
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
-    --subset-file data/longmemeval/splits/rl_50.json \
+    --split rl \
     --output-dir expert_trajectories/longmemeval_rl \
     --expert-model claude-4.5-sonnet
 
@@ -227,7 +237,7 @@ python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model g
 
 # LongMemEval: 400 held-out test samples (not used in training)
 python -m eval.runner --dataset longmemeval \
-    --subset-file data/longmemeval/splits/test_400.json \
+    --split test \
     --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # PerLTQA: All 30 protagonists (8,593 questions)

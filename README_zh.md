@@ -22,7 +22,16 @@ MemBuilder训练大语言模型从对话中构建**多维度长期记忆**。使
 ## 快速开始
 
 ```bash
+# 安装依赖
 pip install -r requirements.txt
+
+# 安装LLaMA-Factory（用于SFT训练）
+pip install llamafactory
+
+# 安装veRL（用于RL训练）
+pip install verl
+
+# 设置API密钥
 export OPENAI_API_KEY="your-key"
 ```
 
@@ -32,24 +41,25 @@ export OPENAI_API_KEY="your-key"
 
 ### 步骤0：生成专家轨迹
 
-我们使用**LongMemEval**作为唯一训练数据源。从500个可用对话中：
-- **50个对话**用于SFT轨迹收集
-- **另外50个对话**用于RL训练（带合成QA对）
+我们使用**LongMemEval**作为唯一训练数据源。数据划分定义在`data/longmemeval/splits/longmemeval_splits.json`中：
+- **51个对话**（`sft`分割）用于SFT轨迹收集
+- **50个对话**（`rl`分割）用于RL训练（带合成QA对）
+- **400个对话**（`test`分割）用于隔离评测
 
 使用Claude 4.5 Sonnet生成记忆构建轨迹：
 
 ```bash
-# 为SFT生成专家轨迹（50个对话，约2,400个会话）
+# 为SFT生成专家轨迹（51个对话，约2,400个会话）
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
-    --subset-file data/longmemeval/splits/sft_50.json \
+    --split sft \
     --output-dir expert_trajectories/longmemeval_sft \
     --expert-model claude-4.5-sonnet
 
 # 为RL生成专家轨迹（另外50个对话）
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
-    --subset-file data/longmemeval/splits/rl_50.json \
+    --split rl \
     --output-dir expert_trajectories/longmemeval_rl \
     --expert-model claude-4.5-sonnet
 
@@ -227,7 +237,7 @@ python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model g
 
 # LongMemEval：400个隔离测试样本（未用于训练）
 python -m eval.runner --dataset longmemeval \
-    --subset-file data/longmemeval/splits/test_400.json \
+    --split test \
     --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # PerLTQA：全部30个主角（8,593个问题）
