@@ -46,42 +46,40 @@ print(answer)  # 输出: 根据记忆，你在谷歌工作。
 
 ## 训练流程
 
-### 数据生成流程
+### 步骤0：生成专家轨迹（SFT和RL共用）
 
-**核心思想**：SFT和RL训练共用同一个专家轨迹生成代码，但后续处理不同。
+使用强专家模型（如Claude 4.5 Sonnet）为每个对话生成记忆构建轨迹。
 
+```bash
+# 生成LongMemEval数据集的专家轨迹
+python scripts/generate_expert_trajectories.py \
+    --dataset longmemeval \
+    --output-dir expert_trajectories/longmemeval \
+    --expert-model claude-4.5-sonnet
+
+# 输出结构：
+# expert_trajectories/longmemeval/{sample_id}/
+# ├── states/          # 每个session前的记忆状态快照
+# ├── agent_calls.jsonl # 4个agent的调用记录
+# └── metadata.json
 ```
-1. 生成专家轨迹（共用）
-   python generate_expert_trajectories.py --dataset locomo
-   → expert_trajectories/{dataset}/{conv_id}/
 
-2a. SFT数据准备
-    python convert_trajectories_to_sft.py
-    → LLaMA-Factory JSON格式
-
-2b. RL数据准备
-    python prepare_rl_data.py --add-qa
-    → veRL Parquet格式（轨迹 + QA pairs）
-```
+---
 
 ### 阶段1：SFT（监督微调）
 
 **目标**：训练模型模仿专家的记忆构建行为。
 
 ```bash
-# 1. 生成专家轨迹（使用claude-4.5-sonnet）
-python scripts/generate_expert_trajectories.py \
-    --dataset longmemeval --output-dir expert_trajectories/longmemeval
-
-# 2. 转换为LLaMA-Factory格式
+# 1. 将专家轨迹转换为LLaMA-Factory格式
 python scripts/convert_trajectories_to_sft.py \
     --trajectory-dir expert_trajectories/longmemeval \
     --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
-# 3. 在LLaMA-Factory/data/dataset_info.json中注册数据集
+# 2. 在LLaMA-Factory/data/dataset_info.json中注册数据集
 #    添加："memory_building_sft": {"file_name": "memory_building_sft.json"}
 
-# 4. 训练
+# 3. 运行SFT训练
 cd /path/to/LLaMA-Factory
 llamafactory-cli train \
     --model_name_or_path Qwen/Qwen3-4B --stage sft --do_train \
@@ -96,12 +94,14 @@ llamafactory-cli train \
 {"instruction": "You are the Core Memory Manager...", "input": "", "output": "```json\n{\"operation\": \"APPEND\", \"content\": \"...\"}\n```"}
 ```
 
+---
+
 ### 阶段2：ADRPO（Attributed Dense Reward Policy Optimization，归因密集奖励策略优化）
 
 **目标**：使用密集QA奖励和基于归因的梯度加权进一步优化记忆构建。
 
 ```bash
-# 1. 准备RL数据
+# 1. 将专家轨迹转换为RL训练数据（包含QA pairs用于奖励计算）
 python scripts/prepare_rl_data.py \
     --trajectories-dir expert_trajectories/longmemeval \
     --output-file data/memory_rl_train.parquet

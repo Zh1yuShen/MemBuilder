@@ -46,42 +46,40 @@ print(answer)  # Output: Based on your memory, you work at Google.
 
 ## Training
 
-### Data Generation Pipeline
+### Step 0: Generate Expert Trajectories (Shared by SFT and RL)
 
-**Key Idea**: SFT and RL training share the same expert trajectory generation, but differ in post-processing.
+Use a strong expert model (e.g., Claude 4.5 Sonnet) to generate memory construction trajectories for each conversation.
 
+```bash
+# Generate expert trajectories for LongMemEval dataset
+python scripts/generate_expert_trajectories.py \
+    --dataset longmemeval \
+    --output-dir expert_trajectories/longmemeval \
+    --expert-model claude-4.5-sonnet
+
+# Output structure:
+# expert_trajectories/longmemeval/{sample_id}/
+# ├── states/          # Memory state snapshots before each session
+# ├── agent_calls.jsonl # Call records for 4 agents
+# └── metadata.json
 ```
-1. Generate expert trajectories (shared)
-   python generate_expert_trajectories.py --dataset locomo
-   → expert_trajectories/{dataset}/{conv_id}/
 
-2a. SFT data preparation
-    python convert_trajectories_to_sft.py
-    → LLaMA-Factory JSON format
-
-2b. RL data preparation
-    python prepare_rl_data.py --add-qa
-    → veRL Parquet format (trajectories + QA pairs)
-```
+---
 
 ### Stage 1: SFT (Supervised Fine-Tuning)
 
 **Goal**: Train the model to imitate expert memory construction behavior.
 
 ```bash
-# 1. Generate expert trajectories (uses claude-4.5-sonnet)
-python scripts/generate_expert_trajectories.py \
-    --dataset longmemeval --output-dir expert_trajectories/longmemeval
-
-# 2. Convert to LLaMA-Factory format
+# 1. Convert expert trajectories to LLaMA-Factory format
 python scripts/convert_trajectories_to_sft.py \
     --trajectory-dir expert_trajectories/longmemeval \
     --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
-# 3. Register dataset in LLaMA-Factory/data/dataset_info.json
+# 2. Register dataset in LLaMA-Factory/data/dataset_info.json
 #    Add: "memory_building_sft": {"file_name": "memory_building_sft.json"}
 
-# 4. Train
+# 3. Run SFT training
 cd /path/to/LLaMA-Factory
 llamafactory-cli train \
     --model_name_or_path Qwen/Qwen3-4B --stage sft --do_train \
@@ -96,12 +94,14 @@ llamafactory-cli train \
 {"instruction": "You are the Core Memory Manager...", "input": "", "output": "```json\n{\"operation\": \"APPEND\", \"content\": \"...\"}\n```"}
 ```
 
+---
+
 ### Stage 2: ADRPO (Attributed Dense Reward Policy Optimization)
 
 **Goal**: Further optimize memory construction using dense QA rewards with attribution-based gradient weighting.
 
 ```bash
-# 1. Prepare RL data
+# 1. Convert expert trajectories to RL training data (includes QA pairs for reward computation)
 python scripts/prepare_rl_data.py \
     --trajectories-dir expert_trajectories/longmemeval \
     --output-file data/memory_rl_train.parquet
