@@ -165,29 +165,29 @@ MemBuilder/
 ├── memory_system.py       # Multi-dimensional memory system
 ├── prompts.py             # Agent prompt templates
 ├── qa_generator.py        # Synthetic QA generation
-├── evaluation.py          # LLM Judge evaluation
 │
 ├── scripts/
-│   ├── generate_expert_trajectories.py  # Step 1: Generate SFT data
-│   ├── convert_trajectories_to_sft.py   # Step 2: Convert to LLaMA-Factory
-│   ├── prepare_rl_data.py               # Step 3: Prepare RL parquet
-│   ├── run_memory_grpo_multinode.sh     # Step 4: Launch veRL
-│   ├── convert_verl_to_hf.sh            # Post: Convert checkpoint
-│   └── launch_vllm_openai_server.sh     # Post: Deploy with vLLM
+│   ├── generate_expert_trajectories.py  # Generate expert trajectories
+│   ├── convert_trajectories_to_sft.py   # Convert to LLaMA-Factory format
+│   ├── prepare_rl_data.py               # Prepare RL parquet data
+│   └── run_memory_grpo_multinode.sh     # Launch veRL training
 │
 ├── data/
-│   ├── sft_example.json             # SFT format example (4 agent types)
-│   ├── rl_training_example.jsonl    # RL intermediate format
-│   ├── verl_training_example.parquet # veRL final format
-│   └── evaluation_sample.json       # Evaluation data format
+│   └── longmemeval/splits/              # Train/test splits
+│
+├── eval/
+│   ├── runner.py          # Evaluation entry point
+│   └── datasets.py        # Dataset loaders
 │
 └── training/
-    ├── sft/train_example.sh         # Full SFT training script
+    ├── sft/
+    │   └── train_example.sh             # SFT training script
+    ├── rl/
+    │   └── adrpo.py                     # ADRPO algorithm implementation
     └── reward_server/
-        ├── server.py                # Flask reward API
-        ├── reward_function.py       # Reward computation
-        ├── reward_config.json       # Reward hyperparameters
-        └── start_server.sh          # Server launcher
+        ├── server.py                    # Reward API server
+        ├── reward_function.py           # Reward computation
+        └── reward_config.json           # Reward hyperparameters
 ```
 
 ---

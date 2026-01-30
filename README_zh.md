@@ -165,29 +165,29 @@ MemBuilder/
 ├── memory_system.py       # 多维度记忆系统
 ├── prompts.py             # 智能体提示词模板
 ├── qa_generator.py        # 合成QA生成
-├── evaluation.py          # LLM Judge评测
 │
 ├── scripts/
-│   ├── generate_expert_trajectories.py  # 步骤1: 生成SFT数据
-│   ├── convert_trajectories_to_sft.py   # 步骤2: 转换为LLaMA-Factory格式
-│   ├── prepare_rl_data.py               # 步骤3: 准备RL parquet
-│   ├── run_memory_grpo_multinode.sh     # 步骤4: 启动veRL
-│   ├── convert_verl_to_hf.sh            # 后处理: 转换checkpoint
-│   └── launch_vllm_openai_server.sh     # 后处理: vLLM部署
+│   ├── generate_expert_trajectories.py  # 生成专家轨迹
+│   ├── convert_trajectories_to_sft.py   # 转换为LLaMA-Factory格式
+│   ├── prepare_rl_data.py               # 准备RL parquet数据
+│   └── run_memory_grpo_multinode.sh     # 启动veRL训练
 │
 ├── data/
-│   ├── sft_example.json             # SFT格式示例（4种智能体）
-│   ├── rl_training_example.jsonl    # RL中间格式
-│   ├── verl_training_example.parquet # veRL最终格式
-│   └── evaluation_sample.json       # 评测数据格式
+│   └── longmemeval/splits/              # 训练/测试数据划分
+│
+├── eval/
+│   ├── runner.py          # 评测入口
+│   └── datasets.py        # 数据集加载器
 │
 └── training/
-    ├── sft/train_example.sh         # 完整SFT训练脚本
+    ├── sft/
+    │   └── train_example.sh             # SFT训练脚本
+    ├── rl/
+    │   └── adrpo.py                     # ADRPO算法实现
     └── reward_server/
-        ├── server.py                # Flask奖励API
-        ├── reward_function.py       # 奖励计算
-        ├── reward_config.json       # 奖励超参数
-        └── start_server.sh          # 服务器启动脚本
+        ├── server.py                    # 奖励API服务器
+        ├── reward_function.py           # 奖励计算
+        └── reward_config.json           # 奖励超参数
 ```
 
 ---
