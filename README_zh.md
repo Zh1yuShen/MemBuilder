@@ -66,7 +66,7 @@ print(answer)  # 输出: 根据记忆，你在谷歌工作。
 
 ### 阶段1：SFT（监督微调）
 
-**目标**：使用LLaMA-Factory用专家行为初始化模型。
+**目标**：训练模型模仿专家的记忆构建行为。
 
 ```bash
 # 1. 生成专家轨迹（使用claude-4.5-sonnet）
@@ -78,8 +78,8 @@ python scripts/convert_trajectories_to_sft.py \
     --trajectory-dir expert_trajectories/longmemeval \
     --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
-# 3. 在LLaMA-Factory/data/dataset_info.json中注册数据集：
-#    "memory_building_sft": {"file_name": "memory_building_sft.json"}
+# 3. 在LLaMA-Factory/data/dataset_info.json中注册数据集
+#    添加："memory_building_sft": {"file_name": "memory_building_sft.json"}
 
 # 4. 训练
 cd /path/to/LLaMA-Factory
@@ -98,7 +98,7 @@ llamafactory-cli train \
 
 ### 阶段2：ADRPO（Attributed Dense Reward Policy Optimization，归因密集奖励策略优化）
 
-**目标**：通过归因密集奖励优化记忆构建。
+**目标**：使用密集QA奖励和基于归因的梯度加权进一步优化记忆构建。
 
 ```bash
 # 1. 准备RL数据
@@ -230,11 +230,17 @@ print(compute_accuracy(results))  # {'overall': 0.85, 'single_hop': 0.90, ...}
 
 ## 引用
 
+如果这项工作对您有帮助，请引用：
+
 ```bibtex
-@article{membuilder2025,
-  title={MemBuilder: Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Reward},
-  author={Anonymous},
-  year={2025}
+@misc{shen2026membuilderreinforcingllmslongterm,
+      title={MemBuilder: Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Rewards}, 
+      author={Zhiyu Shen and Ziming Wu and Fuming Lai and Shaobing Lian and Yanghui Rao},
+      year={2026},
+      eprint={2601.05488},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2601.05488}
 }
 ```
 

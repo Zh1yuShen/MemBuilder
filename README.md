@@ -66,7 +66,7 @@ print(answer)  # Output: Based on your memory, you work at Google.
 
 ### Stage 1: SFT (Supervised Fine-Tuning)
 
-**Goal**: Initialize model with expert behavior using LLaMA-Factory.
+**Goal**: Train the model to imitate expert memory construction behavior.
 
 ```bash
 # 1. Generate expert trajectories (uses claude-4.5-sonnet)
@@ -78,8 +78,8 @@ python scripts/convert_trajectories_to_sft.py \
     --trajectory-dir expert_trajectories/longmemeval \
     --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
-# 3. Register dataset in LLaMA-Factory/data/dataset_info.json:
-#    "memory_building_sft": {"file_name": "memory_building_sft.json"}
+# 3. Register dataset in LLaMA-Factory/data/dataset_info.json
+#    Add: "memory_building_sft": {"file_name": "memory_building_sft.json"}
 
 # 4. Train
 cd /path/to/LLaMA-Factory
@@ -98,7 +98,7 @@ llamafactory-cli train \
 
 ### Stage 2: ADRPO (Attributed Dense Reward Policy Optimization)
 
-**Goal**: Optimize memory construction via attributed dense rewards.
+**Goal**: Further optimize memory construction using dense QA rewards with attribution-based gradient weighting.
 
 ```bash
 # 1. Prepare RL data
@@ -230,11 +230,17 @@ print(compute_accuracy(results))  # {'overall': 0.85, 'single_hop': 0.90, ...}
 
 ## Citation
 
+If you find this work helpful, please cite:
+
 ```bibtex
-@article{membuilder2025,
-  title={MemBuilder: Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Reward},
-  author={Anonymous},
-  year={2025}
+@misc{shen2026membuilderreinforcingllmslongterm,
+      title={MemBuilder: Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Rewards}, 
+      author={Zhiyu Shen and Ziming Wu and Fuming Lai and Shaobing Lian and Yanghui Rao},
+      year={2026},
+      eprint={2601.05488},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2601.05488}
 }
 ```
 
