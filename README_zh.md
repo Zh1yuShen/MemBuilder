@@ -33,12 +33,12 @@ from llm_client import OpenAIClient
 # 初始化记忆系统
 memory = MemorySystem(llm_client=OpenAIClient(model="gpt-4"))
 
-# 处理对话并构建记忆
-session = [{"role": "user", "content": "我在谷歌工作"}]
-memory.process_session(session, user_id="u1")
+# 处理一个对话会话（调用全4个记忆智能体）
+session = [{"role": "user", "content": "我在谷歌做机器学习工程师。"}]
+memory.add(session, user_id="user_001")
 
-# 基于记忆回答问题
-answer = memory.generate_answer("我在哪里工作？", user_id="u1")
+# 基于构建的记忆回答问题
+answer = memory.generate_answer("我在哪里工作？", user_id="user_001")
 print(answer)  # 输出: 根据记忆，你在谷歌工作。
 ```
 
@@ -46,23 +46,37 @@ print(answer)  # 输出: 根据记忆，你在谷歌工作。
 
 ## 训练流程
 
-### 步骤0：生成专家轨迹（SFT和RL共用）
+### 步骤0：生成专家轨迹
 
-使用强专家模型（如Claude 4.5 Sonnet）为每个对话生成记忆构建轨迹。
+我们使用**LongMemEval**作为唯一训练数据源。从500个可用对话中：
+- **50个对话**用于SFT轨迹收集
+- **另外50个对话**用于RL训练（带合成QA对）
+
+使用Claude 4.5 Sonnet生成记忆构建轨迹：
 
 ```bash
-# 生成LongMemEval数据集的专家轨迹
+# 为SFT生成专家轨迹（50个对话，约2,400个会话）
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
-    --output-dir expert_trajectories/longmemeval \
+    --subset-file data/longmemeval/splits/sft_50.json \
+    --output-dir expert_trajectories/longmemeval_sft \
+    --expert-model claude-4.5-sonnet
+
+# 为RL生成专家轨迹（另外50个对话）
+python scripts/generate_expert_trajectories.py \
+    --dataset longmemeval \
+    --subset-file data/longmemeval/splits/rl_50.json \
+    --output-dir expert_trajectories/longmemeval_rl \
     --expert-model claude-4.5-sonnet
 
 # 输出结构：
-# expert_trajectories/longmemeval/{sample_id}/
+# expert_trajectories/{dataset}/{sample_id}/
 # ├── states/          # 每个session前的记忆状态快照
-# ├── agent_calls.jsonl # 4个agent的调用记录
+# ├── agent_calls.jsonl # 4个agent的调用记录（Core, Episodic, Semantic, Procedural）
 # └── metadata.json
 ```
+
+> **注意**：SFT和RL使用**不同的**对话子集以避免数据泄漏。LoCoMo和PerLTQA作为分布外测试集。
 
 ---
 
@@ -71,9 +85,10 @@ python scripts/generate_expert_trajectories.py \
 **目标**：训练模型模仿专家的记忆构建行为。
 
 ```bash
-# 1. 将专家轨迹转换为LLaMA-Factory格式
+# 1. 将SFT轨迹转换为LLaMA-Factory格式
+#    （约9,600个样本：2,400个会话 × 4种记忆类型）
 python scripts/convert_trajectories_to_sft.py \
-    --trajectory-dir expert_trajectories/longmemeval \
+    --trajectory-dir expert_trajectories/longmemeval_sft \
     --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
 # 2. 在LLaMA-Factory/data/dataset_info.json中注册数据集
@@ -101,10 +116,12 @@ llamafactory-cli train \
 **目标**：使用密集QA奖励和基于归因的梯度加权进一步优化记忆构建。
 
 ```bash
-# 1. 将专家轨迹转换为RL训练数据（包含QA pairs用于奖励计算）
+# 1. 将RL轨迹转换为verL格式（包含合成QA对）
+#    每个会话生成5个QA对用于密集奖励计算
 python scripts/prepare_rl_data.py \
-    --trajectories-dir expert_trajectories/longmemeval \
-    --output-file data/memory_rl_train.parquet
+    --trajectories-dir expert_trajectories/longmemeval_rl \
+    --output-file data/memory_rl_train.parquet \
+    --add-qa --qa-per-session 5
 
 # 2. 启动奖励服务器
 cd training/reward_server && ./start_server.sh

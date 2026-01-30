@@ -33,12 +33,12 @@ from llm_client import OpenAIClient
 # Initialize memory system
 memory = MemorySystem(llm_client=OpenAIClient(model="gpt-4"))
 
-# Process conversation and build memory
-session = [{"role": "user", "content": "I work at Google"}]
-memory.process_session(session, user_id="u1")
+# Process a conversation session (invokes all 4 memory agents)
+session = [{"role": "user", "content": "I work at Google as a ML engineer."}]
+memory.add(session, user_id="user_001")
 
-# Answer questions based on memory
-answer = memory.generate_answer("Where do I work?", user_id="u1")
+# Answer questions based on constructed memory
+answer = memory.generate_answer("Where do I work?", user_id="user_001")
 print(answer)  # Output: Based on your memory, you work at Google.
 ```
 
@@ -46,23 +46,37 @@ print(answer)  # Output: Based on your memory, you work at Google.
 
 ## Training
 
-### Step 0: Generate Expert Trajectories (Shared by SFT and RL)
+### Step 0: Generate Expert Trajectories
 
-Use a strong expert model (e.g., Claude 4.5 Sonnet) to generate memory construction trajectories for each conversation.
+We use **LongMemEval** as the sole training source. From 500 available dialogues:
+- **50 dialogues** for SFT trajectory collection
+- **50 separate dialogues** for RL training (with synthetic QA pairs)
+
+Use Claude 4.5 Sonnet to generate memory construction trajectories:
 
 ```bash
-# Generate expert trajectories for LongMemEval dataset
+# Generate expert trajectories for SFT (50 dialogues, ~2,400 sessions)
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
-    --output-dir expert_trajectories/longmemeval \
+    --subset-file data/longmemeval/splits/sft_50.json \
+    --output-dir expert_trajectories/longmemeval_sft \
+    --expert-model claude-4.5-sonnet
+
+# Generate expert trajectories for RL (separate 50 dialogues)
+python scripts/generate_expert_trajectories.py \
+    --dataset longmemeval \
+    --subset-file data/longmemeval/splits/rl_50.json \
+    --output-dir expert_trajectories/longmemeval_rl \
     --expert-model claude-4.5-sonnet
 
 # Output structure:
-# expert_trajectories/longmemeval/{sample_id}/
+# expert_trajectories/{dataset}/{sample_id}/
 # ├── states/          # Memory state snapshots before each session
-# ├── agent_calls.jsonl # Call records for 4 agents
+# ├── agent_calls.jsonl # Call records for 4 agents (Core, Episodic, Semantic, Procedural)
 # └── metadata.json
 ```
+
+> **Note**: SFT and RL use **different** dialogue subsets to avoid data leakage. LoCoMo and PerLTQA serve as out-of-distribution test sets.
 
 ---
 
@@ -71,9 +85,10 @@ python scripts/generate_expert_trajectories.py \
 **Goal**: Train the model to imitate expert memory construction behavior.
 
 ```bash
-# 1. Convert expert trajectories to LLaMA-Factory format
+# 1. Convert SFT trajectories to LLaMA-Factory format
+#    (~9,600 samples: 2,400 sessions × 4 memory types)
 python scripts/convert_trajectories_to_sft.py \
-    --trajectory-dir expert_trajectories/longmemeval \
+    --trajectory-dir expert_trajectories/longmemeval_sft \
     --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
 # 2. Register dataset in LLaMA-Factory/data/dataset_info.json
@@ -101,10 +116,12 @@ llamafactory-cli train \
 **Goal**: Further optimize memory construction using dense QA rewards with attribution-based gradient weighting.
 
 ```bash
-# 1. Convert expert trajectories to RL training data (includes QA pairs for reward computation)
+# 1. Convert RL trajectories to veRL format (includes synthetic QA pairs)
+#    For each session, 5 QA pairs are generated for dense reward computation
 python scripts/prepare_rl_data.py \
-    --trajectories-dir expert_trajectories/longmemeval \
-    --output-file data/memory_rl_train.parquet
+    --trajectories-dir expert_trajectories/longmemeval_rl \
+    --output-file data/memory_rl_train.parquet \
+    --add-qa --qa-per-session 5
 
 # 2. Start reward server
 cd training/reward_server && ./start_server.sh
