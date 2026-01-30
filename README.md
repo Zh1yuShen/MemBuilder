@@ -175,7 +175,7 @@ bash scripts/run_memory_grpo_multinode.sh
 |---------|---------|-------------|
 | `SFT_EXPERT_MODEL` | claude-4.5-sonnet | Expert for trajectory generation |
 | `QA_GENERATION_MODEL` | claude-4.5-opus | Expert for synthetic QA |
-| `ANSWER_MODEL` | gpt-4.1 | Model for QA answering |
+| `ANSWER_MODEL` | gpt-4.1-mini | Model for QA answering (during RL reward) |
 | `JUDGE_MODEL` | gpt-4.1-mini | LLM Judge for evaluation |
 | `EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
 | `CORE_MEMORY_CHAR_LIMIT` | 5000 | Max chars for core memory |
