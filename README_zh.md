@@ -219,28 +219,35 @@ export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 
 我们在三个基准数据集上评测：**LoCoMo**、**LongMemEval** 和 **PerLTQA**。
 
+### 全量基准测试
+
 ```bash
-# 在LoCoMo上评测（单个对话）
-python -m eval.runner \
-    --dataset locomo \
-    --conv-id conv-26 \
-    --model claude-4.5-sonnet \
-    --judge-model gpt-4.1 \
-    --mode full
+# LoCoMo：全部10个对话（1,986个问题）
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
 
-# 在LongMemEval上评测
-python -m eval.runner \
-    --dataset longmemeval \
-    --sample-id sample_001 \
-    --model claude-4.5-sonnet \
-    --judge-model gpt-4.1
+# LongMemEval：400个隔离测试样本（未用于训练）
+python -m eval.runner --dataset longmemeval \
+    --subset-file data/longmemeval/splits/test_400.json \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
-# 在PerLTQA上评测
-python -m eval.runner \
-    --dataset perltqa \
-    --character-id char_alice \
-    --model claude-4.5-sonnet \
-    --judge-model gpt-4.1
+# PerLTQA：全部30个主角（8,593个问题）
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+```
+
+### 单样本测试
+
+```bash
+# 测试单个LoCoMo对话
+python -m eval.runner --dataset locomo --conv-id conv-26 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# 测试单个LongMemEval样本
+python -m eval.runner --dataset longmemeval --sample-id sample_001 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# 测试单个PerLTQA人物
+python -m eval.runner --dataset perltqa --character-id char_alice \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
 **关键选项：**

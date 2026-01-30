@@ -219,28 +219,35 @@ export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 
 We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
 
+### Full Benchmark Evaluation
+
 ```bash
-# Run evaluation on LoCoMo (single conversation)
-python -m eval.runner \
-    --dataset locomo \
-    --conv-id conv-26 \
-    --model claude-4.5-sonnet \
-    --judge-model gpt-4.1 \
-    --mode full
+# LoCoMo: All 10 conversations (1,986 questions)
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
 
-# Run evaluation on LongMemEval
-python -m eval.runner \
-    --dataset longmemeval \
-    --sample-id sample_001 \
-    --model claude-4.5-sonnet \
-    --judge-model gpt-4.1
+# LongMemEval: 400 held-out test samples (not used in training)
+python -m eval.runner --dataset longmemeval \
+    --subset-file data/longmemeval/splits/test_400.json \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
-# Run evaluation on PerLTQA
-python -m eval.runner \
-    --dataset perltqa \
-    --character-id char_alice \
-    --model claude-4.5-sonnet \
-    --judge-model gpt-4.1
+# PerLTQA: All 30 protagonists (8,593 questions)
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+```
+
+### Single Sample Testing
+
+```bash
+# Test single LoCoMo conversation
+python -m eval.runner --dataset locomo --conv-id conv-26 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# Test single LongMemEval sample
+python -m eval.runner --dataset longmemeval --sample-id sample_001 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# Test single PerLTQA character
+python -m eval.runner --dataset perltqa --character-id char_alice \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
 **Key options:**
