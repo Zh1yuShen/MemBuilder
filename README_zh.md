@@ -12,12 +12,12 @@ MemBuilder训练大语言模型从对话中构建**多维度长期记忆**。使
 
 ## 记忆架构
 
-| 类型 | 用途 | 操作 | 示例 |
-|------|------|------|------|
-| **Core** | 用户画像（持久） | APPEND, REPLACE, REWRITE | "姓名：小明。职业：工程师。" |
-| **Episodic** | 带时间戳的事件 | ADD, UPDATE, MERGE | "2024-03-15: 升职了" |
-| **Semantic** | 实体相关事实 | ADD, UPDATE, SKIP | "Rust - 用户最喜欢的语言" |
-| **Procedural** | 偏好和工作流 | ADD, UPDATE | "喜欢简短回复" |
+| 类型 | 存储内容 | 操作 | 示例 |
+|------|----------|------|------|
+| **Core** | 用户基本信息（持久化） | APPEND, REPLACE, REWRITE | "姓名：小明。职业：工程师。" |
+| **Episodic** | 时间相关的事件记忆 | ADD, UPDATE, MERGE | "2024-03-15: 升职了" |
+| **Semantic** | 实体和概念的知识 | ADD, UPDATE, SKIP | "Rust - 用户最喜欢的语言" |
+| **Procedural** | 用户偏好和习惯 | ADD, UPDATE | "喜欢简短回复" |
 
 ## 快速开始
 
@@ -30,9 +30,16 @@ export OPENAI_API_KEY="your-key"
 from memory_system import MemorySystem
 from llm_client import OpenAIClient
 
+# 初始化记忆系统
 memory = MemorySystem(llm_client=OpenAIClient(model="gpt-4"))
-memory.add([{"role": "user", "content": "我在谷歌工作"}], user_id="u1")
-print(memory.generate_answer("我在哪里工作？", user_id="u1"))
+
+# 处理对话并构建记忆
+session = [{"role": "user", "content": "我在谷歌工作"}]
+memory.process_session(session, user_id="u1")
+
+# 基于记忆回答问题
+answer = memory.generate_answer("我在哪里工作？", user_id="u1")
+print(answer)  # 输出: 根据记忆，你在谷歌工作。
 ```
 
 ---
@@ -41,20 +48,20 @@ print(memory.generate_answer("我在哪里工作？", user_id="u1"))
 
 ### 数据生成流程
 
-SFT和RL训练共用同一个专家轨迹生成代码：
+**核心思想**：SFT和RL训练共用同一个专家轨迹生成代码，但后续处理不同。
 
 ```
-generate_expert_trajectories.py (共用)
-         │
-         │  --dataset locomo/longmemeval/perltqa
-         │
-         ▼
-   expert_trajectories/{dataset}/{conv_id}/
-         │
-    ┌────┴────┐
-    ▼         ▼
- SFT数据    RL数据
- (JSON)    (Parquet)
+1. 生成专家轨迹（共用）
+   python generate_expert_trajectories.py --dataset locomo
+   → expert_trajectories/{dataset}/{conv_id}/
+
+2a. SFT数据准备
+    python convert_trajectories_to_sft.py
+    → LLaMA-Factory JSON格式
+
+2b. RL数据准备
+    python prepare_rl_data.py --add-qa
+    → veRL Parquet格式（轨迹 + QA pairs）
 ```
 
 ### 阶段1：SFT（监督微调）
@@ -89,7 +96,7 @@ llamafactory-cli train \
 {"instruction": "You are the Core Memory Manager...", "input": "", "output": "```json\n{\"operation\": \"APPEND\", \"content\": \"...\"}\n```"}
 ```
 
-### 阶段2：ADRPO（veRL强化学习）
+### 阶段2：ADRPO（Attributed Dense Reward Policy Optimization，归因密集奖励策略优化）
 
 **目标**：通过归因密集奖励优化记忆构建。
 
@@ -233,4 +240,24 @@ print(compute_accuracy(results))  # {'overall': 0.85, 'single_hop': 0.90, ...}
 
 ## 许可证
 
-MIT
+MIT License
+
+Copyright (c) 2023 MemBuilder Authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

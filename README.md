@@ -12,12 +12,12 @@ MemBuilder trains LLMs to build **multi-dimensional long-term memory** from conv
 
 ## Memory Architecture
 
-| Type | Purpose | Actions | Example |
-|------|---------|---------|---------|
-| **Core** | User profile (persistent) | APPEND, REPLACE, REWRITE | "Name: Sarah. Job: Engineer." |
-| **Episodic** | Time-stamped events | ADD, UPDATE, MERGE | "2024-03-15: Got promoted" |
-| **Semantic** | Facts about entities | ADD, UPDATE, SKIP | "Rust - User's favorite language" |
-| **Procedural** | Preferences & workflows | ADD, UPDATE | "Prefers brief responses" |
+| Type | Storage Content | Actions | Example |
+|------|-----------------|---------|---------|
+| **Core** | User basic information (persistent) | APPEND, REPLACE, REWRITE | "Name: Sarah. Job: Engineer." |
+| **Episodic** | Time-related event memories | ADD, UPDATE, MERGE | "2024-03-15: Got promoted" |
+| **Semantic** | Knowledge about entities and concepts | ADD, UPDATE, SKIP | "Rust - User's favorite language" |
+| **Procedural** | User preferences and habits | ADD, UPDATE | "Prefers brief responses" |
 
 ## Quick Start
 
@@ -30,9 +30,16 @@ export OPENAI_API_KEY="your-key"
 from memory_system import MemorySystem
 from llm_client import OpenAIClient
 
+# Initialize memory system
 memory = MemorySystem(llm_client=OpenAIClient(model="gpt-4"))
-memory.add([{"role": "user", "content": "I work at Google"}], user_id="u1")
-print(memory.generate_answer("Where do I work?", user_id="u1"))
+
+# Process conversation and build memory
+session = [{"role": "user", "content": "I work at Google"}]
+memory.process_session(session, user_id="u1")
+
+# Answer questions based on memory
+answer = memory.generate_answer("Where do I work?", user_id="u1")
+print(answer)  # Output: Based on your memory, you work at Google.
 ```
 
 ---
@@ -41,20 +48,20 @@ print(memory.generate_answer("Where do I work?", user_id="u1"))
 
 ### Data Generation Pipeline
 
-Both SFT and RL training share the same expert trajectory generation:
+**Key Idea**: SFT and RL training share the same expert trajectory generation, but differ in post-processing.
 
 ```
-generate_expert_trajectories.py (shared)
-         │
-         │  --dataset locomo/longmemeval/perltqa
-         │
-         ▼
-   expert_trajectories/{dataset}/{conv_id}/
-         │
-    ┌────┴────┐
-    ▼         ▼
- SFT Data   RL Data
- (JSON)     (Parquet)
+1. Generate expert trajectories (shared)
+   python generate_expert_trajectories.py --dataset locomo
+   → expert_trajectories/{dataset}/{conv_id}/
+
+2a. SFT data preparation
+    python convert_trajectories_to_sft.py
+    → LLaMA-Factory JSON format
+
+2b. RL data preparation
+    python prepare_rl_data.py --add-qa
+    → veRL Parquet format (trajectories + QA pairs)
 ```
 
 ### Stage 1: SFT (Supervised Fine-Tuning)
@@ -89,7 +96,7 @@ llamafactory-cli train \
 {"instruction": "You are the Core Memory Manager...", "input": "", "output": "```json\n{\"operation\": \"APPEND\", \"content\": \"...\"}\n```"}
 ```
 
-### Stage 2: ADRPO (RL Training with veRL)
+### Stage 2: ADRPO (Attributed Dense Reward Policy Optimization)
 
 **Goal**: Optimize memory construction via attributed dense rewards.
 
@@ -233,4 +240,4 @@ print(compute_accuracy(results))  # {'overall': 0.85, 'single_hop': 0.90, ...}
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
