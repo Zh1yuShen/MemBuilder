@@ -26,22 +26,6 @@ pip install -r requirements.txt
 export OPENAI_API_KEY="your-key"
 ```
 
-```python
-from memory_system import MemorySystem
-from llm_client import OpenAIClient
-
-# Initialize memory system
-memory = MemorySystem(llm_client=OpenAIClient(model="gpt-4"))
-
-# Process a conversation session (invokes all 4 memory agents)
-session = [{"role": "user", "content": "I work at Google as a ML engineer."}]
-memory.add(session, user_id="user_001")
-
-# Answer questions based on constructed memory
-answer = memory.generate_answer("Where do I work?", user_id="user_001")
-print(answer)  # Output: Based on your memory, you work at Google.
-```
-
 ---
 
 ## Training

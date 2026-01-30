@@ -26,22 +26,6 @@ pip install -r requirements.txt
 export OPENAI_API_KEY="your-key"
 ```
 
-```python
-from memory_system import MemorySystem
-from llm_client import OpenAIClient
-
-# 初始化记忆系统
-memory = MemorySystem(llm_client=OpenAIClient(model="gpt-4"))
-
-# 处理一个对话会话（调用全4个记忆智能体）
-session = [{"role": "user", "content": "我在谷歌做机器学习工程师。"}]
-memory.add(session, user_id="user_001")
-
-# 基于构建的记忆回答问题
-answer = memory.generate_answer("我在哪里工作？", user_id="user_001")
-print(answer)  # 输出: 根据记忆，你在谷歌工作。
-```
-
 ---
 
 ## 训练流程
