@@ -1,0 +1,22 @@
+[
+  {
+    "instruction": "You are the Core Memory Manager...\n\nCurrent Core Memory (Human Block):\n[Empty]\n\nNew Messages:\nuser: Hi! I'm Sarah, a software engineer from Seattle.\nassistant: Nice to meet you!",
+    "input": "",
+    "output": "```json\n{\n  \"operation\": \"APPEND\",\n  \"content\": \"Name: Sarah. Occupation: Software engineer. Location: Seattle.\"\n}\n```"
+  },
+  {
+    "instruction": "You are the Episodic Memory Manager...\n\nCurrent Episodic Memories:\n[Empty]\n\nNew Messages:\nuser: I got promoted today!\n\nSession Timestamp: 2024-03-15",
+    "input": "",
+    "output": "```json\n{\n  \"operations\": [\n    {\"action\": \"ADD\", \"memory\": \"2024-03-15: User got promoted\"}\n  ],\n  \"memories_added\": 1\n}\n```"
+  },
+  {
+    "instruction": "You are the Semantic Memory Manager...\n\nCurrent Semantic Memories:\n[Empty]\n\nNew Messages:\nuser: I love programming in Rust.",
+    "input": "",
+    "output": "```json\n{\n  \"operations\": [\n    {\"action\": \"ADD\", \"memory\": \"User's favorite programming language is Rust\"}\n  ],\n  \"memories_added\": 1\n}\n```"
+  },
+  {
+    "instruction": "You are the Procedural Memory Manager...\n\nCurrent Procedural Memories:\n[Empty]\n\nNew Messages:\nuser: Please keep responses brief.",
+    "input": "",
+    "output": "```json\n{\n  \"operations\": [\n    {\"action\": \"ADD\", \"memory\": \"User prefers brief responses\"}\n  ],\n  \"memories_added\": 1\n}\n```"
+  }
+]

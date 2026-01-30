@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Data
+*.faiss
+faiss_data/
+
+# Internal files (DO NOT OPEN SOURCE)
+*_internal.py
+*_internal.sh
+*_internal.json
+scripts/run_memory_grpo_multinode.sh
+tools/
+
+# Archive (old code backup)
+membuilder_archive/
+
+# Training outputs
+outputs/
+scripts/outputs/
+checkpoints/
+
+# Raw datasets (use processed versions)
+data/locomo_raw/
+data/perltqa_raw/
+
+# Large dataset files (download separately)
+data/locomo/locomo_eval.jsonl
+data/longmemeval/longmemeval_s_cleaned.json
+
+# RL training data (only keep example)
+data/memory_rl_train.parquet
+data/rl_training_data.jsonl
+data/sft_trajectories.jsonl
+
+# Expert trajectories (generated, not tracked)
+expert_trajectories/
+
+# Temporary files
+*.tmp
+.DS_Store

@@ -1,0 +1,657 @@
+#!/usr/bin/env python3
+"""
+Generate Expert Memory Building Trajectories for SFT Training.
+
+This script generates expert memory construction trajectories using a strong
+expert model (e.g., Claude 4.5 Sonnet) for supervised fine-tuning.
+
+Output structure:
+expert_trajectories/{dataset}/{conv_id}/
+├── states/
+│   ├── state_0/  (FAISS vectors + core_memory.json)
+│   ├── state_1/
+│   └── ...
+└── agent_calls.jsonl  (one agent call record per line)
+
+Usage:
+    # Single conversation
+    python generate_expert_trajectories.py \
+        --dataset locomo \
+        --conv-id conv-26 \
+        --expert-model claude-4.5-sonnet
+
+    # Batch generation
+    python generate_expert_trajectories.py \
+        --dataset locomo \
+        --subset-file data/conv_ids.json \
+        --expert-model claude-4.5-sonnet \
+        --parallel --workers 4
+"""
+
+import argparse
+import json
+import time
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from memory_system import MemorySystem
+from llm_client import OpenAIClient
+from config import SFT_EXPERT_MODEL
+
+from jinja2 import Template
+
+
+class ExpertTrajectoryGenerator:
+    """Generate expert memory building trajectories."""
+    
+    def __init__(
+        self, 
+        dataset: str, 
+        expert_model: str, 
+        output_dir: str = "./expert_trajectories"
+    ):
+        self.dataset = dataset
+        self.expert_model = expert_model
+        self.output_dir = Path(output_dir) / dataset
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        print(f"Initialized trajectory generator:")
+        print(f"  Dataset: {dataset}")
+        print(f"  Expert model: {expert_model}")
+        print(f"  Output directory: {self.output_dir}")
+    
+    def generate_conversation_trajectory(
+        self,
+        conv_id: str,
+        sessions: List[Dict],
+        skip_existing: bool = False
+    ) -> Dict:
+        """Generate complete trajectory for a single conversation."""
+        conv_dir = self.output_dir / conv_id
+        
+        # Check if already exists
+        if skip_existing and (conv_dir / "agent_calls.jsonl").exists():
+            print(f"Skipping existing: {conv_id}")
+            return {"conv_id": conv_id, "status": "skipped"}
+        
+        conv_dir.mkdir(parents=True, exist_ok=True)
+        states_dir = conv_dir / "states"
+        states_dir.mkdir(exist_ok=True)
+        
+        # Initialize memory system with expert model
+        llm_client = OpenAIClient(model=self.expert_model)
+        memory = MemorySystem(llm_client=llm_client)
+        
+        # Process each session
+        agent_calls = []
+        
+        for session_idx, session in enumerate(sessions):
+            messages = session.get("messages", session) if isinstance(session, dict) else session
+            timestamp = session.get("timestamp") if isinstance(session, dict) else None
+
+            print(f"  Processing session {session_idx + 1}/{len(sessions)}...")
+
+            state_before_path = states_dir / f"state_{session_idx}"
+            self._save_state(memory, state_before_path)
+
+            session_calls = self._process_session(
+                memory=memory,
+                messages=messages,
+                session_index=session_idx,
+                conv_id=conv_id,
+                user_id=conv_id,
+                state_before_path=str(state_before_path),
+                timestamp=timestamp,
+            )
+            agent_calls.extend(session_calls)
+        
+        # Save final state
+        final_state_path = states_dir / f"state_{len(sessions)}"
+        self._save_state(memory, final_state_path)
+        
+        # Save agent calls
+        with open(conv_dir / "agent_calls.jsonl", "w") as f:
+            for call in agent_calls:
+                f.write(json.dumps(call, ensure_ascii=False) + "\n")
+        
+        # Save metadata
+        metadata = {
+            "conv_id": conv_id,
+            "num_sessions": len(sessions),
+            "expert_model": self.expert_model,
+            "total_agent_calls": len(agent_calls)
+        }
+        with open(conv_dir / "metadata.json", "w") as f:
+            json.dump(metadata, f, indent=2)
+        
+        return {
+            "conv_id": conv_id,
+            "status": "completed",
+            "num_sessions": len(sessions),
+            "agent_calls": len(agent_calls)
+        }
+    
+    def _save_state(self, memory: MemorySystem, state_path: Path):
+        """Save memory state to disk."""
+        memory.save_state(str(state_path))
+
+    def _process_session(
+        self,
+        memory: MemorySystem,
+        messages: List[Dict[str, Any]],
+        session_index: int,
+        conv_id: str,
+        user_id: str,
+        state_before_path: str,
+        timestamp: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        calls = []
+
+        core_call = self._call_core_agent(
+            memory_system=memory,
+            messages=messages,
+            session_index=session_index,
+            conv_id=conv_id,
+            user_id=user_id,
+            state_before_path=state_before_path,
+            timestamp=timestamp,
+        )
+        calls.append(core_call)
+
+        for agent_type in ["episodic", "semantic", "procedural"]:
+            calls.append(
+                self._call_memory_agent(
+                    memory_system=memory,
+                    agent_type=agent_type,
+                    messages=messages,
+                    session_index=session_index,
+                    conv_id=conv_id,
+                    user_id=user_id,
+                    state_before_path=state_before_path,
+                    timestamp=timestamp,
+                )
+            )
+
+        return calls
+
+    def _call_core_agent(
+        self,
+        memory_system: MemorySystem,
+        messages: List[Dict[str, Any]],
+        session_index: int,
+        conv_id: str,
+        user_id: str,
+        state_before_path: str,
+        timestamp: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        current_core = memory_system.core_memory.human if memory_system.core_memory.human else "[Empty]"
+        core_usage = memory_system.core_memory.get_usage()
+
+        formatted_messages = memory_system._format_messages(messages)
+        template = Template(memory_system.prompts["core"])
+        full_prompt = template.render(
+            current_core_memory=current_core,
+            core_usage=core_usage,
+            messages=formatted_messages,
+        )
+
+        call_start = time.time()
+        response = memory_system.llm_client.chat_completion(
+            messages=[{"role": "user", "content": full_prompt}],
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+        call_time_ms = (time.time() - call_start) * 1000
+
+        # Use memory_system's JSON cleaning method (handles markdown-wrapped JSON)
+        clean_response = memory_system._clean_json_response(response)
+        result = json.loads(clean_response)
+        operation = result.get("operation", "APPEND")
+
+        if operation == "APPEND":
+            content = result.get("content", "")
+            if content:
+                memory_system.core_memory.human = (
+                    memory_system.core_memory.human + f"\n{content}"
+                    if memory_system.core_memory.human
+                    else content
+                )
+        elif operation == "REPLACE":
+            old_text = result.get("old_text", "")
+            new_text = result.get("new_text", "")
+            if old_text and new_text:
+                memory_system.core_memory.human = memory_system.core_memory.human.replace(old_text, new_text)
+        elif operation == "REWRITE":
+            content = result.get("content", "")
+            if content:
+                memory_system.core_memory.human = content
+
+        call_record = {
+            "conversation_id": conv_id,
+            "session_index": session_index,
+            "agent_type": "core",
+            "call_id": f"{conv_id}_session-{session_index}_core",
+            "state_before_path": state_before_path,
+            "input": {
+                "system_prompt": memory_system.prompts["core"],
+                "retrieved_memories": {
+                    "core_memory": current_core,
+                    "usage_percent": core_usage,
+                },
+                "new_session": {
+                    "timestamp": timestamp,
+                    "messages": messages,
+                },
+                "full_prompt": full_prompt,
+            },
+            "expert_output": {
+                "operation": operation,
+                "new_core_memory": memory_system.core_memory.human,
+            },
+            "metadata": {
+                "expert_model": self.expert_model,
+                "temperature": 0.0,
+                "call_time_ms": call_time_ms,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            },
+        }
+
+        return call_record
+
+    def _call_memory_agent(
+        self,
+        memory_system: MemorySystem,
+        agent_type: str,
+        messages: List[Dict[str, Any]],
+        session_index: int,
+        conv_id: str,
+        user_id: str,
+        state_before_path: str,
+        timestamp: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        existing = memory_system._get_existing_memories(agent_type, user_id, messages)
+        formatted_messages = memory_system._format_messages(messages)
+
+        template = Template(memory_system.prompts[agent_type])
+        if agent_type == "episodic":
+            full_prompt = template.render(
+                existing_episodic="\n".join(existing) if existing else "[No existing memories]",
+                messages=formatted_messages,
+                conversation_timestamp=timestamp or "Not provided",
+            )
+        elif agent_type == "semantic":
+            full_prompt = template.render(
+                existing_semantic="\n".join(existing) if existing else "[No existing memories]",
+                messages=formatted_messages,
+            )
+        else:
+            full_prompt = template.render(
+                existing_procedural="\n".join(existing) if existing else "[No existing memories]",
+                messages=formatted_messages,
+            )
+
+        call_start = time.time()
+        response = memory_system.llm_client.chat_completion(
+            messages=[{"role": "user", "content": full_prompt}],
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+        call_time_ms = (time.time() - call_start) * 1000
+
+        # Use memory_system's JSON cleaning method (handles markdown-wrapped JSON)
+        clean_response = memory_system._clean_json_response(response)
+        result = json.loads(clean_response)
+        operations = result.get("operations", [])
+
+        memories_added = []
+        prefix = f"[{agent_type.upper()}]"
+        for op in operations:
+            action = op.get("action", "")
+            if action == "ADD":
+                mem = op.get("memory", "")
+            elif action in ["UPDATE", "MERGE"]:
+                mem = op.get("new_memory", "")
+            else:
+                mem = ""
+
+            if mem:
+                mem = str(mem)
+                if not mem.startswith(prefix):
+                    mem = f"{prefix} {mem}"
+                memories_added.append(mem)
+
+        if memories_added:
+            memory_system.vector_store.add(memories_added, [{"user_id": user_id, "type": "memory"} for _ in memories_added])
+
+        call_record = {
+            "conversation_id": conv_id,
+            "session_index": session_index,
+            "agent_type": agent_type,
+            "call_id": f"{conv_id}_session-{session_index}_{agent_type}",
+            "state_before_path": state_before_path,
+            "input": {
+                "system_prompt": memory_system.prompts[agent_type],
+                "retrieved_memories": {
+                    agent_type: [
+                        {"id": f"{agent_type}_{i}", "content": mem, "score": 0.0}
+                        for i, mem in enumerate(existing[:50])
+                    ]
+                },
+                "new_session": {
+                    "timestamp": timestamp,
+                    "messages": messages,
+                },
+                "full_prompt": full_prompt,
+            },
+            "expert_output": {
+                "operations": operations,
+                "memories_added": memories_added,
+            },
+            "metadata": {
+                "expert_model": self.expert_model,
+                "temperature": 0.0,
+                "call_time_ms": call_time_ms,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            },
+        }
+
+        return call_record
+    
+    def generate_batch(
+        self,
+        conversations: List[Dict],
+        parallel: bool = False,
+        workers: int = 4,
+        skip_existing: bool = True
+    ):
+        """Generate trajectories for multiple conversations."""
+        print(f"\nGenerating {len(conversations)} trajectories...")
+        
+        results = []
+        
+        if parallel:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(
+                        self.generate_conversation_trajectory,
+                        conv["id"],
+                        conv["sessions"],
+                        skip_existing
+                    ): conv["id"]
+                    for conv in conversations
+                }
+                
+                for future in as_completed(futures):
+                    conv_id = futures[future]
+                    try:
+                        result = future.result()
+                        results.append(result)
+                        print(f"  Completed: {conv_id}")
+                    except Exception as e:
+                        print(f"  Failed: {conv_id} - {str(e)[:100]}")
+                        results.append({"conv_id": conv_id, "status": "failed", "error": str(e)})
+        else:
+            for conv in conversations:
+                try:
+                    result = self.generate_conversation_trajectory(
+                        conv["id"],
+                        conv["sessions"],
+                        skip_existing
+                    )
+                    results.append(result)
+                except Exception as e:
+                    print(f"  Failed: {conv['id']} - {str(e)[:100]}")
+                    results.append({"conv_id": conv["id"], "status": "failed", "error": str(e)})
+        
+        # Summary
+        completed = sum(1 for r in results if r.get("status") == "completed")
+        skipped = sum(1 for r in results if r.get("status") == "skipped")
+        failed = sum(1 for r in results if r.get("status") == "failed")
+        
+        print(f"\nGeneration complete:")
+        print(f"  Completed: {completed}")
+        print(f"  Skipped: {skipped}")
+        print(f"  Failed: {failed}")
+        
+        return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate expert trajectories")
+    parser.add_argument("--dataset", type=str, required=True, help="Dataset name")
+    parser.add_argument("--dataset-path", type=str, help="Path to dataset file (JSONL/JSON)")
+    parser.add_argument("--conv-id", type=str, help="Single conversation ID")
+    parser.add_argument("--subset-file", type=str, help="JSON file with conversation IDs")
+    parser.add_argument("--expert-model", type=str, default=SFT_EXPERT_MODEL, 
+                       help="Expert model for generation")
+    parser.add_argument("--output-dir", type=str, default="./expert_trajectories",
+                       help="Output directory")
+    parser.add_argument("--parallel", action="store_true", help="Enable parallel processing")
+    parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers")
+    parser.add_argument("--skip-existing", action="store_true", help="Skip existing trajectories")
+    
+    args = parser.parse_args()
+    
+    generator = ExpertTrajectoryGenerator(
+        dataset=args.dataset,
+        expert_model=args.expert_model,
+        output_dir=args.output_dir
+    )
+    
+    def load_jsonl(path: Path) -> List[Dict[str, Any]]:
+        data = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    data.append(json.loads(line))
+        return data
+
+    def resolve_locomo_path(dataset_path: Optional[str]) -> Path:
+        if dataset_path:
+            return Path(dataset_path)
+
+        candidates = [
+            Path(__file__).parent.parent / "data" / "locomo_mc10.json",
+            Path(__file__).parent.parent.parent / "locomo" / "locomo_mc10" / "data" / "locomo_mc10.json",
+            Path(__file__).parent.parent.parent / "locomo" / "locomo_mc10" / "data" / "locomo_mc10.jsonl",
+        ]
+        for p in candidates:
+            if p.exists():
+                return p
+        raise FileNotFoundError("LoCoMo dataset file not found. Provide --dataset-path.")
+
+    def locomo_conv_sessions(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
+        sessions = sample.get("haystack_sessions", [])
+        dates = sample.get("haystack_session_datetimes") or sample.get("haystack_dates") or []
+        out = []
+        for idx, sess in enumerate(sessions):
+            ts = dates[idx] if idx < len(dates) else None
+            msgs = []
+            for turn in sess:
+                if isinstance(turn, dict):
+                    role = turn.get("speaker") or turn.get("role") or "Unknown"
+                    content = turn.get("message") or turn.get("text") or turn.get("content") or ""
+                    if content:
+                        msgs.append({"role": str(role), "content": str(content)})
+            out.append({"messages": msgs, "timestamp": ts})
+        return out
+
+    def load_locomo_conversations(
+        dataset_path: Optional[str],
+        conv_ids: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        path = resolve_locomo_path(dataset_path)
+        data = load_jsonl(path)
+        grouped = {}
+        for item in data:
+            qid = item.get("question_id")
+            if not qid or "_q" not in qid:
+                continue
+            cid = qid.split("_q")[0]
+            if conv_ids and cid not in set(conv_ids):
+                continue
+            if cid not in grouped:
+                grouped[cid] = {
+                    "id": cid,
+                    "sessions": locomo_conv_sessions(item),
+                }
+        if conv_ids:
+            ordered = []
+            for cid in conv_ids:
+                if cid in grouped:
+                    ordered.append(grouped[cid])
+            return ordered
+        return list(grouped.values())
+
+    def parse_subset_ids(obj: Any) -> List[str]:
+        if isinstance(obj, list):
+            if not obj:
+                return []
+            if isinstance(obj[0], str):
+                return obj
+            return []
+        if isinstance(obj, dict):
+            if "conv_ids" in obj and isinstance(obj["conv_ids"], list):
+                return [str(x) for x in obj["conv_ids"]]
+            if "question_ids" in obj and isinstance(obj["question_ids"], list):
+                convs = sorted({str(q).split("_q")[0] for q in obj["question_ids"] if "_q" in str(q)})
+                return convs
+        return []
+
+    if args.dataset == "locomo":
+        if args.conv_id:
+            conversations = load_locomo_conversations(args.dataset_path, conv_ids=[args.conv_id])
+            if not conversations:
+                raise ValueError(f"Conversation not found: {args.conv_id}")
+            generator.generate_conversation_trajectory(
+                conv_id=conversations[0]["id"],
+                sessions=conversations[0]["sessions"],
+                skip_existing=args.skip_existing,
+            )
+        elif args.subset_file:
+            with open(args.subset_file, "r", encoding="utf-8") as f:
+                subset_obj = json.load(f)
+            conv_ids = parse_subset_ids(subset_obj)
+            if not conv_ids and isinstance(subset_obj, list) and subset_obj and isinstance(subset_obj[0], dict):
+                conversations = subset_obj
+            else:
+                conversations = load_locomo_conversations(args.dataset_path, conv_ids=conv_ids or None)
+            generator.generate_batch(
+                conversations,
+                parallel=args.parallel,
+                workers=args.workers,
+                skip_existing=args.skip_existing,
+            )
+        else:
+            parser.print_help()
+    elif args.dataset == "longmemeval":
+        # LongMemEval dataset support
+        def resolve_longmemeval_path(dataset_path: Optional[str]) -> Path:
+            if dataset_path:
+                return Path(dataset_path)
+            candidates = [
+                Path(__file__).parent.parent / "data" / "longmemeval" / "longmemeval_s_cleaned.json",
+                Path(__file__).parent.parent.parent / "longmemeval" / "longmemeval_s.json",
+            ]
+            for p in candidates:
+                if p.exists():
+                    return p
+            raise FileNotFoundError("LongMemEval dataset not found. Provide --dataset-path.")
+
+        def longmemeval_conv_sessions(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
+            sessions = sample.get("haystack_sessions", [])
+            dates = sample.get("haystack_dates", [])
+            out = []
+            for idx, sess in enumerate(sessions):
+                ts = dates[idx] if idx < len(dates) else None
+                msgs = []
+                for turn in sess:
+                    if isinstance(turn, dict):
+                        role = turn.get("role", "user")
+                        content = turn.get("content", "")
+                        if content:
+                            msgs.append({"role": str(role), "content": str(content)})
+                out.append({"messages": msgs, "timestamp": ts})
+            return out
+
+        def load_longmemeval_conversations(
+            dataset_path: Optional[str],
+            question_ids: Optional[List[str]] = None,
+        ) -> List[Dict[str, Any]]:
+            path = resolve_longmemeval_path(dataset_path)
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            # Group by question_id (each sample is a unique conversation)
+            conversations = []
+            seen_ids = set()
+            for item in data:
+                qid = item.get("question_id", "")
+                if not qid or qid in seen_ids:
+                    continue
+                if question_ids and qid not in set(question_ids):
+                    continue
+                seen_ids.add(qid)
+                conversations.append({
+                    "id": qid,
+                    "sessions": longmemeval_conv_sessions(item),
+                    "question": item.get("question"),
+                    "answer": item.get("answer"),
+                })
+            return conversations
+
+        if args.conv_id:
+            conversations = load_longmemeval_conversations(args.dataset_path, question_ids=[args.conv_id])
+            if not conversations:
+                raise ValueError(f"Conversation not found: {args.conv_id}")
+            generator.generate_conversation_trajectory(
+                conv_id=conversations[0]["id"],
+                sessions=conversations[0]["sessions"],
+                skip_existing=args.skip_existing,
+            )
+        elif args.subset_file:
+            with open(args.subset_file, "r", encoding="utf-8") as f:
+                subset_obj = json.load(f)
+            question_ids = subset_obj if isinstance(subset_obj, list) else subset_obj.get("question_ids", [])
+            conversations = load_longmemeval_conversations(args.dataset_path, question_ids=question_ids or None)
+            generator.generate_batch(
+                conversations,
+                parallel=args.parallel,
+                workers=args.workers,
+                skip_existing=args.skip_existing,
+            )
+        else:
+            # Default: load first conversation
+            conversations = load_longmemeval_conversations(args.dataset_path)
+            if conversations:
+                print(f"No --conv-id specified. Using first conversation: {conversations[0]['id']}")
+                generator.generate_conversation_trajectory(
+                    conv_id=conversations[0]["id"],
+                    sessions=conversations[0]["sessions"],
+                    skip_existing=args.skip_existing,
+                )
+            else:
+                parser.print_help()
+    else:
+        if args.subset_file:
+            with open(args.subset_file, "r", encoding="utf-8") as f:
+                subset_data = json.load(f)
+
+            generator.generate_batch(
+                subset_data,
+                parallel=args.parallel,
+                workers=args.workers,
+                skip_existing=args.skip_existing,
+            )
+        else:
+            parser.print_help()
+
+
+
+if __name__ == "__main__":
+    main()

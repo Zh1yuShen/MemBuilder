@@ -1,0 +1,159 @@
+{
+  "dataset_info": {
+    "name": "MemBuilder Evaluation Sample",
+    "description": "Sample evaluation data format for long-term dialogue QA",
+    "version": "1.0"
+  },
+  "conversations": [
+    {
+      "id": "eval_conv_001",
+      "sessions": [
+        {
+          "session_id": 0,
+          "timestamp": "2024-03-15",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi! I just got a new job at Google as a machine learning engineer."
+            },
+            {
+              "role": "assistant",
+              "content": "Congratulations! That's wonderful news. What team will you be on?"
+            }
+          ]
+        },
+        {
+          "session_id": 1,
+          "timestamp": "2024-03-22",
+          "messages": [
+            {
+              "role": "user",
+              "content": "I'm on the recommendation systems team. I also adopted a cat named Luna last weekend!"
+            },
+            {
+              "role": "assistant",
+              "content": "Great team choice! And Luna is a lovely name. What does she look like?"
+            }
+          ]
+        },
+        {
+          "session_id": 2,
+          "timestamp": "2024-03-29",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Luna is black with white paws. She's very playful! I've also started learning to bake sourdough bread."
+            },
+            {
+              "role": "assistant",
+              "content": "She sounds adorable! Sourdough is a great hobby. How's the baking going?"
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "question": "Where do I work?",
+          "answer": "Google",
+          "type": "single-hop",
+          "category": "factual"
+        },
+        {
+          "question": "What is my cat's name and what does she look like?",
+          "answer": "Luna, she is black with white paws",
+          "type": "multi-hop",
+          "category": "factual"
+        },
+        {
+          "question": "How long after starting my job did I adopt my cat?",
+          "answer": "About one week (adopted around March 16, started job March 15)",
+          "type": "temporal-reasoning",
+          "category": "temporal"
+        },
+        {
+          "question": "What hobbies have I mentioned?",
+          "answer": "Baking sourdough bread",
+          "type": "single-hop",
+          "category": "factual"
+        },
+        {
+          "question": "Do I have any pets?",
+          "answer": "Yes, a cat named Luna",
+          "type": "single-hop",
+          "category": "factual"
+        }
+      ]
+    },
+    {
+      "id": "eval_conv_002",
+      "sessions": [
+        {
+          "session_id": 0,
+          "timestamp": "2024-04-01",
+          "messages": [
+            {
+              "role": "user",
+              "content": "I'm planning a trip to Japan next month with my friend Sarah. We want to visit Tokyo and Kyoto."
+            },
+            {
+              "role": "assistant",
+              "content": "How exciting! Japan is beautiful. How long will you be there?"
+            }
+          ]
+        },
+        {
+          "session_id": 1,
+          "timestamp": "2024-04-08",
+          "messages": [
+            {
+              "role": "user",
+              "content": "We'll be there for 10 days. Sarah is really into photography so we're focusing on scenic spots. I booked a ryokan in Kyoto!"
+            },
+            {
+              "role": "assistant",
+              "content": "10 days is perfect! A ryokan experience will be memorable. Which one did you book?"
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "question": "Who am I traveling to Japan with?",
+          "answer": "Sarah",
+          "type": "single-hop",
+          "category": "factual"
+        },
+        {
+          "question": "Which cities will I visit in Japan?",
+          "answer": "Tokyo and Kyoto",
+          "type": "single-hop",
+          "category": "factual"
+        },
+        {
+          "question": "How long is my Japan trip?",
+          "answer": "10 days",
+          "type": "single-hop",
+          "category": "factual"
+        },
+        {
+          "question": "What is Sarah's hobby?",
+          "answer": "Photography",
+          "type": "single-hop",
+          "category": "factual"
+        },
+        {
+          "question": "What type of accommodation did I book in Kyoto?",
+          "answer": "A ryokan (traditional Japanese inn)",
+          "type": "single-hop",
+          "category": "factual"
+        }
+      ]
+    }
+  ],
+  "question_types": {
+    "single-hop": "Questions answerable from a single session",
+    "multi-hop": "Questions requiring information from multiple sessions",
+    "temporal-reasoning": "Questions involving time calculations or event ordering",
+    "adversarial": "Questions with potentially misleading information"
+  }
+}
