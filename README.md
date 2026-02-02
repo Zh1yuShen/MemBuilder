@@ -187,7 +187,8 @@ MemBuilder/
 │
 └── training/
     ├── sft/
-    │   └── train_example.sh             # SFT training script
+    │   ├── train_example.sh             # SFT training script
+    │   └── ds_z2_config.json            # DeepSpeed ZeRO-2 config
     ├── rl/
     │   └── adrpo.py                     # ADRPO algorithm implementation
     └── reward_server/
