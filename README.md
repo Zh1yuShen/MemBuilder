@@ -42,14 +42,14 @@ export OPENAI_API_KEY="your-key"
 ### Step 0: Generate Expert Trajectories
 
 We use **LongMemEval** as the sole training source. The data splits are defined in `data/longmemeval/splits/longmemeval_splits.json`:
-- **51 dialogues** (`sft` split) for SFT trajectory collection
+- **50 dialogues** (`sft` split) for SFT trajectory collection
 - **50 dialogues** (`rl` split) for RL training (with synthetic QA pairs)
 - **400 dialogues** (`test` split) for held-out evaluation
 
 Use Claude 4.5 Sonnet to generate memory construction trajectories:
 
 ```bash
-# Generate expert trajectories for SFT (51 dialogues, ~2,400 sessions)
+# Generate expert trajectories for SFT (50 dialogues, ~2,400 sessions)
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split sft \

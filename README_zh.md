@@ -42,14 +42,14 @@ export OPENAI_API_KEY="your-key"
 ### 步骤0：生成专家轨迹
 
 我们使用**LongMemEval**作为唯一训练数据源。数据划分定义在`data/longmemeval/splits/longmemeval_splits.json`中：
-- **51个对话**（`sft`分割）用于SFT轨迹收集
+- **50个对话**（`sft`分割）用于SFT轨迹收集
 - **50个对话**（`rl`分割）用于RL训练（带合成QA对）
 - **400个对话**（`test`分割）用于隔离评测
 
 使用Claude 4.5 Sonnet生成记忆构建轨迹：
 
 ```bash
-# 为SFT生成专家轨迹（51个对话，约2,400个会话）
+# 为SFT生成专家轨迹（50个对话，约2,400个会话）
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split sft \
