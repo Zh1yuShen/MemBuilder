@@ -1,6 +1,6 @@
 # MemBuilder
 
-[中文版](README_zh.md) | English
+[中文版](README_zh.md) | English | [📄 Paper](https://arxiv.org/abs/2601.05488)
 
 **Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Rewards**
 
