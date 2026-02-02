@@ -6,24 +6,22 @@ This script generates expert memory construction trajectories using a strong
 expert model (e.g., Claude 4.5 Sonnet) for supervised fine-tuning.
 
 Output structure:
-expert_trajectories/{dataset}/{conv_id}/
-├── states/
-│   ├── state_0/  (FAISS vectors + core_memory.json)
-│   ├── state_1/
-│   └── ...
-└── agent_calls.jsonl  (one agent call record per line)
+expert_trajectories/{dataset}/{sample_id}/
+├── states/          # Memory state snapshots before each session
+├── agent_calls.jsonl # Call records for 4 agents (Core, Episodic, Semantic, Procedural)
+└── metadata.json
 
 Usage:
-    # Single conversation
+    # Single conversation (LoCoMo)
     python generate_expert_trajectories.py \
         --dataset locomo \
         --conv-id conv-26 \
         --expert-model claude-4.5-sonnet
 
-    # Batch generation
+    # Using predefined split (LongMemEval)
     python generate_expert_trajectories.py \
-        --dataset locomo \
-        --subset-file data/conv_ids.json \
+        --dataset longmemeval \
+        --split sft \
         --expert-model claude-4.5-sonnet \
         --parallel --workers 4
 """
