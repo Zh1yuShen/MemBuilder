@@ -170,14 +170,18 @@ MemBuilder/
 │   ├── generate_expert_trajectories.py  # Generate expert trajectories
 │   ├── convert_trajectories_to_sft.py   # Convert to LLaMA-Factory format
 │   ├── prepare_rl_data.py               # Prepare RL parquet data
-│   └── run_memory_grpo_multinode.sh     # Launch veRL training
+│   ├── run_memory_grpo_multinode.sh     # Launch veRL training
+│   ├── convert_verl_to_hf.sh            # Convert veRL checkpoint to HF
+│   └── launch_vllm_openai_server.sh     # Deploy with vLLM
 │
 ├── data/
 │   └── longmemeval/splits/              # Train/test splits
 │
 ├── eval/
 │   ├── runner.py          # Evaluation entry point
-│   └── datasets.py        # Dataset loaders
+│   ├── datasets.py        # Dataset loaders
+│   ├── llm_judge.py       # LLM-based answer evaluation
+│   └── metrics.py         # Accuracy metrics computation
 │
 └── training/
     ├── sft/
@@ -187,7 +191,8 @@ MemBuilder/
     └── reward_server/
         ├── server.py                    # Reward API server
         ├── reward_function.py           # Reward computation
-        └── reward_config.json           # Reward hyperparameters
+        ├── reward_config.json           # Reward hyperparameters
+        └── start_server.sh              # Server startup script
 ```
 
 ---

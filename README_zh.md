@@ -170,14 +170,18 @@ MemBuilder/
 │   ├── generate_expert_trajectories.py  # 生成专家轨迹
 │   ├── convert_trajectories_to_sft.py   # 转换为LLaMA-Factory格式
 │   ├── prepare_rl_data.py               # 准备RL parquet数据
-│   └── run_memory_grpo_multinode.sh     # 启动veRL训练
+│   ├── run_memory_grpo_multinode.sh     # 启动veRL训练
+│   ├── convert_verl_to_hf.sh            # 转换veRL检查点为HF格式
+│   └── launch_vllm_openai_server.sh     # 使用vLLM部署
 │
 ├── data/
 │   └── longmemeval/splits/              # 训练/测试数据划分
 │
 ├── eval/
 │   ├── runner.py          # 评测入口
-│   └── datasets.py        # 数据集加载器
+│   ├── datasets.py        # 数据集加载器
+│   ├── llm_judge.py       # LLM答案评估
+│   └── metrics.py         # 准确率指标计算
 │
 └── training/
     ├── sft/
@@ -187,7 +191,8 @@ MemBuilder/
     └── reward_server/
         ├── server.py                    # 奖励API服务器
         ├── reward_function.py           # 奖励计算
-        └── reward_config.json           # 奖励超参数
+        ├── reward_config.json           # 奖励超参数
+        └── start_server.sh              # 服务器启动脚本
 ```
 
 ---
