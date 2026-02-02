@@ -213,15 +213,15 @@ export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 
 ```bash
 # LoCoMo：全部10个对话（1,986个问题）
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # LongMemEval：400个隔离测试样本（未用于训练）
 python -m eval.runner --dataset longmemeval \
     --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # PerLTQA：全部30个主角（8,593个问题）
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 ```
 
 ### 单样本测试
@@ -229,15 +229,15 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 ```bash
 # 测试单个LoCoMo对话
 python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # 测试单个LongMemEval样本
-python -m eval.runner --dataset longmemeval --sample-id sample_001 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset longmemeval --sample-id e47becba \
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # 测试单个PerLTQA人物
-python -m eval.runner --dataset perltqa --character-id char_alice \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset perltqa --character-id char_000 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 ```
 
 **关键选项：**
@@ -268,7 +268,7 @@ python -m eval.runner --dataset perltqa --character-id char_alice \
 
 MIT License
 
-Copyright (c) 2023 MemBuilder Authors
+Copyright (c) 2026 The MemBuilder Authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

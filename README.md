@@ -213,15 +213,15 @@ We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
 
 ```bash
 # LoCoMo: All 10 conversations (1,986 questions)
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # LongMemEval: 400 held-out test samples (not used in training)
 python -m eval.runner --dataset longmemeval \
     --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # PerLTQA: All 30 protagonists (8,593 questions)
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 ```
 
 ### Single Sample Testing
@@ -229,15 +229,15 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 ```bash
 # Test single LoCoMo conversation
 python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # Test single LongMemEval sample
-python -m eval.runner --dataset longmemeval --sample-id sample_001 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset longmemeval --sample-id e47becba \
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
 # Test single PerLTQA character
-python -m eval.runner --dataset perltqa --character-id char_alice \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset perltqa --character-id char_000 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 ```
 
 **Key options:**
