@@ -37,7 +37,56 @@ export OPENAI_API_KEY="your-key"
 
 ---
 
+## Evaluation (Try It First)
+
+Before training your own model, we recommend first trying the memory construction framework with a strong API model (e.g., Claude 4.5 Sonnet) to understand how it works.
+
+We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
+
+### Quick Test (Single Sample)
+
+```bash
+# Test single LoCoMo conversation
+python -m eval.runner --dataset locomo --conv-id conv-26 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# Test single LongMemEval sample
+python -m eval.runner --dataset longmemeval --sample-id e47becba \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# Test single PerLTQA character
+python -m eval.runner --dataset perltqa --character-id char_000 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+```
+
+### Full Benchmark Evaluation
+
+```bash
+# LoCoMo: All 10 conversations (1,986 questions)
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# LongMemEval: 400 held-out test samples (not used in training)
+python -m eval.runner --dataset longmemeval \
+    --split test \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# PerLTQA: All 31 protagonists (8,316 questions)
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+```
+
+**Key options:**
+- `--mode build`: Build memory only (save to disk)
+- `--mode answer`: Answer only (load saved memory)
+- `--mode full`: Build + Answer (default)
+- `--sessions N`: Limit to first N sessions
+- `--questions N`: Limit to first N questions
+- `--verbose`: Show detailed output
+
+---
+
 ## Training
+
+If you want to train your own memory construction model, follow the steps below.
 
 ### Step 0: Generate Expert Trajectories
 
@@ -212,49 +261,6 @@ bash scripts/launch_vllm_openai_server.sh models/hf_model 8000 1
 # Note: vLLM doesn't support embeddings, configure separately:
 export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 ```
-
-## Evaluation
-
-We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
-
-### Full Benchmark Evaluation
-
-```bash
-# LoCoMo: All 10 conversations (1,986 questions)
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# LongMemEval: 400 held-out test samples (not used in training)
-python -m eval.runner --dataset longmemeval \
-    --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# PerLTQA: All 31 protagonists (8,316 questions)
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
-```
-
-### Single Sample Testing
-
-```bash
-# Test single LoCoMo conversation
-python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# Test single LongMemEval sample
-python -m eval.runner --dataset longmemeval --sample-id e47becba \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# Test single PerLTQA character
-python -m eval.runner --dataset perltqa --character-id char_000 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-```
-
-**Key options:**
-- `--mode build`: Build memory only (save to disk)
-- `--mode answer`: Answer only (load saved memory)
-- `--mode full`: Build + Answer (default)
-- `--sessions N`: Limit to first N sessions
-- `--questions N`: Limit to first N questions
-- `--verbose`: Show detailed output
 
 ## Citation
 

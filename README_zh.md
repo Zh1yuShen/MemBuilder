@@ -37,7 +37,56 @@ export OPENAI_API_KEY="your-key"
 
 ---
 
+## 评测（先试试看）
+
+在训练自己的模型之前，我们建议先使用强大的API模型（如Claude 4.5 Sonnet）尝试记忆构建框架，了解它的工作原理。
+
+我们在三个基准数据集上评测：**LoCoMo**、**LongMemEval** 和 **PerLTQA**。
+
+### 快速测试（单样本）
+
+```bash
+# 测试单个LoCoMo对话
+python -m eval.runner --dataset locomo --conv-id conv-26 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# 测试单个LongMemEval样本
+python -m eval.runner --dataset longmemeval --sample-id e47becba \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# 测试单个PerLTQA人物
+python -m eval.runner --dataset perltqa --character-id char_000 \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+```
+
+### 全量基准测试
+
+```bash
+# LoCoMo：全部10个对话（1,986个问题）
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# LongMemEval：400个隔离测试样本（未用于训练）
+python -m eval.runner --dataset longmemeval \
+    --split test \
+    --model claude-4.5-sonnet --judge-model gpt-4.1
+
+# PerLTQA：全部31个主角（8,316个问题）
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+```
+
+**关键选项：**
+- `--mode build`：仅构建记忆（保存到磁盘）
+- `--mode answer`：仅回答（加载已保存的记忆）
+- `--mode full`：构建+回答（默认）
+- `--sessions N`：限制前N个会话
+- `--questions N`：限制前N个问题
+- `--verbose`：显示详细输出
+
+---
+
 ## 训练流程
+
+如果你想训练自己的记忆构建模型，请按照以下步骤操作。
 
 ### 步骤0：生成专家轨迹
 
@@ -212,49 +261,6 @@ bash scripts/launch_vllm_openai_server.sh models/hf_model 8000 1
 # 注意: vLLM不支持embeddings，需单独配置：
 export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 ```
-
-## 评测
-
-我们在三个基准数据集上评测：**LoCoMo**、**LongMemEval** 和 **PerLTQA**。
-
-### 全量基准测试
-
-```bash
-# LoCoMo：全部10个对话（1,986个问题）
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# LongMemEval：400个隔离测试样本（未用于训练）
-python -m eval.runner --dataset longmemeval \
-    --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# PerLTQA：全部31个主角（8,316个问题）
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
-```
-
-### 单样本测试
-
-```bash
-# 测试单个LoCoMo对话
-python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# 测试单个LongMemEval样本
-python -m eval.runner --dataset longmemeval --sample-id e47becba \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-
-# 测试单个PerLTQA人物
-python -m eval.runner --dataset perltqa --character-id char_000 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
-```
-
-**关键选项：**
-- `--mode build`：仅构建记忆（保存到磁盘）
-- `--mode answer`：仅回答（加载已保存的记忆）
-- `--mode full`：构建+回答（默认）
-- `--sessions N`：限制前N个会话
-- `--questions N`：限制前N个问题
-- `--verbose`：显示详细输出
 
 ## 引用
 
