@@ -4,7 +4,7 @@ Prepare RL Training Data for verl Framework.
 
 Converts expert trajectories (agent_calls.jsonl) to verl-compatible parquet format.
 
-Input: expert_trajectories/{dataset}/{conv_id}/agent_calls.jsonl
+Input: expert_trajectories/{dataset}/{sample_id}/agent_calls.jsonl
 Output: data/memory_rl_train.parquet
 
 The parquet file contains:
