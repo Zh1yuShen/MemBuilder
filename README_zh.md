@@ -105,7 +105,7 @@ llamafactory-cli train \
 **目标**：使用密集QA奖励和基于归因的梯度加权进一步优化记忆构建。
 
 ```bash
-# 1. 将RL轨迹转换为verL格式（包含合成QA对）
+# 1. 将RL轨迹转换为veRL格式（包含合成QA对）
 #    每个会话生成5个QA对用于密集奖励计算
 python scripts/prepare_rl_data.py \
     --trajectories-dir expert_trajectories/longmemeval_rl \
