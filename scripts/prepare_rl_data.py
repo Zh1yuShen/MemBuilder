@@ -14,10 +14,10 @@ The parquet file contains:
 - reward_model: Configuration for reward computation
 
 Usage:
-    python prepare_rl_data.py \
-        --trajectories-dir expert_trajectories/locomo \
+    python scripts/prepare_rl_data.py \
+        --trajectories-dir expert_trajectories/longmemeval_rl \
         --output-file data/memory_rl_train.parquet \
-        --add-qa  # Add QA pairs for task reward
+        --add-qa --qa-per-session 5
 """
 
 import argparse
