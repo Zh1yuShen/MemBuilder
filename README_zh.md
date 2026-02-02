@@ -170,6 +170,8 @@ MemBuilder/
 │   ├── generate_expert_trajectories.py  # 生成专家轨迹
 │   ├── convert_trajectories_to_sft.py   # 转换为LLaMA-Factory格式
 │   ├── prepare_rl_data.py               # 准备RL parquet数据
+│   ├── process_locomo.py                # 处理LoCoMo数据集
+│   ├── process_perltqa.py               # 处理PerLTQA数据集
 │   ├── run_memory_grpo_multinode.sh     # 启动veRL训练
 │   ├── convert_verl_to_hf.sh            # 转换veRL检查点为HF格式
 │   └── launch_vllm_openai_server.sh     # 使用vLLM部署

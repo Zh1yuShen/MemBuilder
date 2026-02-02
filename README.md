@@ -170,6 +170,8 @@ MemBuilder/
 │   ├── generate_expert_trajectories.py  # Generate expert trajectories
 │   ├── convert_trajectories_to_sft.py   # Convert to LLaMA-Factory format
 │   ├── prepare_rl_data.py               # Prepare RL parquet data
+│   ├── process_locomo.py                # Process LoCoMo dataset
+│   ├── process_perltqa.py               # Process PerLTQA dataset
 │   ├── run_memory_grpo_multinode.sh     # Launch veRL training
 │   ├── convert_verl_to_hf.sh            # Convert veRL checkpoint to HF
 │   └── launch_vllm_openai_server.sh     # Deploy with vLLM
