@@ -220,7 +220,7 @@ python -m eval.runner --dataset longmemeval \
     --split test \
     --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
-# PerLTQA：全部30个主角（8,593个问题）
+# PerLTQA：全部31个主角（8,316个问题）
 python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 ```
 

@@ -220,7 +220,7 @@ python -m eval.runner --dataset longmemeval \
     --split test \
     --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 
-# PerLTQA: All 30 protagonists (8,593 questions)
+# PerLTQA: All 31 protagonists (8,316 questions)
 python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1-mini
 ```
 
