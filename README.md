@@ -150,7 +150,7 @@ bash scripts/run_memory_grpo_multinode.sh
 | `SFT_EXPERT_MODEL` | claude-4.5-sonnet | Expert for trajectory generation |
 | `QA_GENERATION_MODEL` | claude-4.5-opus | Expert for synthetic QA |
 | `ANSWER_MODEL` | gpt-4.1-mini | Model for QA answering (during RL reward) |
-| `JUDGE_MODEL` | gpt-4.1-mini | LLM Judge for evaluation |
+| `JUDGE_MODEL` | gpt-4.1 | LLM Judge for evaluation |
 | `EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
 | `CORE_MEMORY_CHAR_LIMIT` | 5000 | Max chars for core memory |
 
@@ -221,15 +221,15 @@ We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
 
 ```bash
 # LoCoMo: All 10 conversations (1,986 questions)
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # LongMemEval: 400 held-out test samples (not used in training)
 python -m eval.runner --dataset longmemeval \
     --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # PerLTQA: All 31 protagonists (8,316 questions)
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
 ### Single Sample Testing
@@ -237,15 +237,15 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 ```bash
 # Test single LoCoMo conversation
 python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # Test single LongMemEval sample
 python -m eval.runner --dataset longmemeval --sample-id e47becba \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # Test single PerLTQA character
 python -m eval.runner --dataset perltqa --character-id char_000 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
 **Key options:**

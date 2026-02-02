@@ -150,7 +150,7 @@ bash scripts/run_memory_grpo_multinode.sh
 | `SFT_EXPERT_MODEL` | claude-4.5-sonnet | 轨迹生成专家模型 |
 | `QA_GENERATION_MODEL` | claude-4.5-opus | 合成QA专家模型 |
 | `ANSWER_MODEL` | gpt-4.1-mini | QA回答模型 |
-| `JUDGE_MODEL` | gpt-4.1-mini | LLM Judge评测模型 |
+| `JUDGE_MODEL` | gpt-4.1 | LLM Judge评测模型 |
 | `EMBEDDING_MODEL` | text-embedding-3-small | 嵌入模型 |
 | `CORE_MEMORY_CHAR_LIMIT` | 5000 | 核心记忆最大字符数 |
 
@@ -221,15 +221,15 @@ export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 
 ```bash
 # LoCoMo：全部10个对话（1,986个问题）
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # LongMemEval：400个隔离测试样本（未用于训练）
 python -m eval.runner --dataset longmemeval \
     --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # PerLTQA：全部31个主角（8,316个问题）
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
 ### 单样本测试
@@ -237,15 +237,15 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 ```bash
 # 测试单个LoCoMo对话
 python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # 测试单个LongMemEval样本
 python -m eval.runner --dataset longmemeval --sample-id e47becba \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 
 # 测试单个PerLTQA人物
 python -m eval.runner --dataset perltqa --character-id char_000 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1-mini
+    --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
 **关键选项：**

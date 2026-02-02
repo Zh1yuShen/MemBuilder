@@ -24,8 +24,8 @@ QA_GENERATION_MODEL = "claude-4.5-opus"
 # Answer model for RL reward (Paper F.2: GPT-4.1-mini for both answer generation and judging)
 ANSWER_MODEL = "gpt-4.1-mini"
 
-# LLM Judge model for evaluation (Paper F.2: GPT-4.1-mini)
-JUDGE_MODEL = "gpt-4.1-mini"
+# LLM Judge model for evaluation
+JUDGE_MODEL = "gpt-4.1"
 
 # Embedding model for retrieval
 EMBEDDING_MODEL = "text-embedding-3-small"
