@@ -10,9 +10,8 @@ so this script simply extracts and reformats the data.
 
 Usage:
     python scripts/convert_trajectories_to_sft.py \
-        --trajectory-dir expert_trajectories/longmemeval \
-        --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json \
-        --max-length 20000
+        --trajectory-dir expert_trajectories/longmemeval_sft \
+        --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
 
 Output format (LLaMA-Factory compatible, alpaca style):
     [
