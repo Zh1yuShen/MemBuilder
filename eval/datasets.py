@@ -75,7 +75,8 @@ def load_longmemeval(
     data_path: str = None,
     sample_id: str = None,
     num_samples: int = None,
-    subset_file: str = None
+    subset_file: str = None,
+    sample_ids: List[str] = None
 ) -> List[Dict]:
     """
     Load LongMemEval dataset.
@@ -110,7 +111,13 @@ def load_longmemeval(
     with open(data_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    # 子集筛选
+    # 子集筛选 (通过 --split 参数传入的 sample_ids)
+    if sample_ids:
+        sample_id_set = set(sample_ids)
+        data = [d for d in data if d['question_id'] in sample_id_set]
+        print(f"📦 使用预定义分割: {len(data)} 样本")
+    
+    # 子集筛选 (通过 subset_file)
     if subset_file:
         subset_path = Path(subset_file)
         if not subset_path.is_absolute():
@@ -278,9 +285,10 @@ def load_dataset(
     Returns:
         List of samples
     """
+    sample_ids = kwargs.get('sample_ids', None)
     loaders = {
         'locomo': lambda: load_locomo(data_path, conv_id, num_samples),
-        'longmemeval': lambda: load_longmemeval(data_path, sample_id, num_samples, subset_file),
+        'longmemeval': lambda: load_longmemeval(data_path, sample_id, num_samples, subset_file, sample_ids),
         'perltqa': lambda: load_perltqa(data_path, character_id, num_samples, subset_file),
     }
     

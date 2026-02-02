@@ -427,6 +427,8 @@ def main():
     parser.add_argument("--dataset-path", type=str, help="Path to dataset file (JSONL/JSON)")
     parser.add_argument("--conv-id", type=str, help="Single conversation ID")
     parser.add_argument("--subset-file", type=str, help="JSON file with conversation IDs")
+    parser.add_argument("--split", type=str, choices=["sft", "rl", "test"], 
+                       help="Use predefined split from data/longmemeval/splits/longmemeval_splits.json")
     parser.add_argument("--expert-model", type=str, default=SFT_EXPERT_MODEL, 
                        help="Expert model for generation")
     parser.add_argument("--output-dir", type=str, default="./expert_trajectories",
@@ -436,6 +438,23 @@ def main():
     parser.add_argument("--skip-existing", action="store_true", help="Skip existing trajectories")
     
     args = parser.parse_args()
+    
+    # Handle --split parameter: convert to subset_file path
+    if args.split and args.dataset == "longmemeval":
+        splits_file = Path(__file__).parent.parent / "data" / "longmemeval" / "splits" / "longmemeval_splits.json"
+        if splits_file.exists():
+            with open(splits_file, "r", encoding="utf-8") as f:
+                splits_data = json.load(f)
+            if args.split in splits_data:
+                # Create a temporary list of question IDs for this split
+                args._split_question_ids = splits_data[args.split]
+                print(f"Using {args.split} split: {len(args._split_question_ids)} dialogues")
+            else:
+                raise ValueError(f"Split '{args.split}' not found in {splits_file}")
+        else:
+            raise FileNotFoundError(f"Splits file not found: {splits_file}")
+    else:
+        args._split_question_ids = None
     
     generator = ExpertTrajectoryGenerator(
         dataset=args.dataset,
@@ -612,6 +631,15 @@ def main():
             generator.generate_conversation_trajectory(
                 conv_id=conversations[0]["id"],
                 sessions=conversations[0]["sessions"],
+                skip_existing=args.skip_existing,
+            )
+        elif args._split_question_ids:
+            # Use --split parameter
+            conversations = load_longmemeval_conversations(args.dataset_path, question_ids=args._split_question_ids)
+            generator.generate_batch(
+                conversations,
+                parallel=args.parallel,
+                workers=args.workers,
                 skip_existing=args.skip_existing,
             )
         elif args.subset_file:

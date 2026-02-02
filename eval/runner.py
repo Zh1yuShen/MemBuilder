@@ -462,6 +462,24 @@ def run_evaluation(args) -> int:
     print(f"   Provider: {provider}")
     print("=" * 60)
     
+    # ========== 处理 --split 参数 ==========
+    subset_file = getattr(args, 'subset_file', None)
+    split_sample_ids = None
+    if args.split and args.dataset == 'longmemeval':
+        splits_file = Path(__file__).parent.parent / "data" / "longmemeval" / "splits" / "longmemeval_splits.json"
+        if splits_file.exists():
+            with open(splits_file, "r", encoding="utf-8") as f:
+                splits_data = json.load(f)
+            if args.split in splits_data:
+                split_sample_ids = splits_data[args.split]
+                print(f"   Using {args.split} split: {len(split_sample_ids)} samples")
+            else:
+                print(f"Error: Split '{args.split}' not found in {splits_file}")
+                return 1
+        else:
+            print(f"Error: Splits file not found: {splits_file}")
+            return 1
+    
     # ========== 加载数据 ==========
     print("\n📚 加载数据...")
     data = load_dataset(
@@ -470,7 +488,8 @@ def run_evaluation(args) -> int:
         sample_id=args.sample_id,
         character_id=getattr(args, 'character_id', None),
         num_samples=args.questions,
-        subset_file=getattr(args, 'subset_file', None)
+        subset_file=subset_file,
+        sample_ids=split_sample_ids
     )
     print(f"   加载 {len(data)} 条数据")
     
@@ -869,6 +888,8 @@ def main():
     parser.add_argument('--sample-id', default=None, help='Sample ID (for longmemeval)')
     parser.add_argument('--character-id', default=None, help='Character ID (for perltqa)')
     parser.add_argument('--subset-file', default=None, help='Path to subset config file')
+    parser.add_argument('--split', choices=['sft', 'rl', 'test'], default=None,
+                       help='Use predefined split from data/longmemeval/splits/longmemeval_splits.json')
     
     # Mode options
     parser.add_argument('--mode', choices=['build', 'answer', 'full'], 
