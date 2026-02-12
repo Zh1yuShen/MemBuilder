@@ -138,6 +138,7 @@ def create_llm_client(
     api_key: str = None,
     base_url: str = None,
     model: str = "gpt-4o",
+    provider: str = None,
     **kwargs
 ) -> LLMClient:
     """

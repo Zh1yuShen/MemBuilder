@@ -28,10 +28,20 @@ import multiprocessing
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from memory_system import MemorySystem
-from llm_client import OpenAIClient, create_llm_client
+
+# Internal client provides MetaAI support and separate embedding endpoints.
+# Falls back to the open-source client if internal module is not available.
+try:
+    from llm_client_internal import OpenAIClient, create_llm_client
+    _USING_INTERNAL_CLIENT = True
+except ImportError:
+    from llm_client import OpenAIClient, create_llm_client
+    _USING_INTERNAL_CLIENT = False
+
 from config import (
     ANSWER_MODEL, JUDGE_MODEL, EMBEDDING_MODEL,
-    QA_ANSWERING_TOP_K, OPENAI_API_KEY, OPENAI_BASE_URL
+    QA_ANSWERING_TOP_K, OPENAI_API_KEY, OPENAI_BASE_URL,
+    OPENAI_EMBEDDINGS_BASE_URL, OPENAI_EMBEDDINGS_API_KEY
 )
 
 from eval.llm_judge import evaluate_answer, LLMJudge
@@ -39,16 +49,53 @@ from eval.metrics import compute_accuracy, print_accuracy_stats
 from eval.datasets import load_dataset, get_current_time
 
 
+def _make_embedding_func():
+    """Create a separate embedding function if a dedicated embedding endpoint is configured.
+    
+    Only activates when OPENAI_EMBEDDINGS_BASE_URL is explicitly set in env/config.
+    Otherwise returns None — the llm_client handles embedding internally
+    (internal client auto-falls back to yunwu.ai for vLLM; open-source uses same endpoint).
+    
+    Returns:
+        Embedding function, or None.
+    """
+    if not OPENAI_EMBEDDINGS_BASE_URL:
+        return None
+    
+    from openai import OpenAI
+    emb_client = OpenAI(
+        api_key=OPENAI_EMBEDDINGS_API_KEY or "EMPTY",
+        base_url=OPENAI_EMBEDDINGS_BASE_URL
+    )
+    
+    def _embedding_func(texts):
+        response = emb_client.embeddings.create(input=texts, model=EMBEDDING_MODEL)
+        return [item.embedding for item in response.data]
+    
+    return _embedding_func
+
+
+def _create_memory_system(llm_client):
+    """Create MemorySystem with proper embedding configuration.
+    
+    If a separate embedding endpoint is configured (via config.py),
+    it will be used instead of the llm_client's default embeddings.
+    This is essential when the chat provider (e.g., vLLM) cannot serve embeddings.
+    """
+    embedding_func = _make_embedding_func()
+    return MemorySystem(llm_client=llm_client, embedding_func=embedding_func)
+
+
 def process_longmemeval_sample(sample_args):
     """Process a single LongMemEval sample (for parallel processing)."""
-    sample, idx, total, provider, model_name, judge_model_name, kwargs, max_sessions, top_k, mode, verbose = sample_args
+    sample, idx, total, provider, model_name, judge_model_name, judge_provider, kwargs, judge_kwargs, max_sessions, top_k, mode, verbose = sample_args
     
     sample_id = sample['question_id']
     user_id = f'test_{sample_id}'
     
     # Create new LLM client for this process
     sample_llm_client = create_llm_client(provider=provider, model=model_name, **kwargs)
-    sample_judge_client = create_llm_client(provider=provider, model=judge_model_name, **kwargs)
+    sample_judge_client = create_llm_client(provider=judge_provider, model=judge_model_name, **judge_kwargs)
     sample_judge = LLMJudge(sample_judge_client)
     
     # Limit sessions if requested
@@ -59,7 +106,7 @@ def process_longmemeval_sample(sample_args):
             sample['haystack_session_datetimes'] = sample['haystack_session_datetimes'][:max_sessions]
     
     # Initialize MemorySystem
-    memory = MemorySystem(llm_client=sample_llm_client)
+    memory = _create_memory_system(sample_llm_client)
     
     result = {
         'question_id': sample_id,
@@ -435,23 +482,24 @@ def run_evaluation(args) -> int:
     model = args.model or ANSWER_MODEL
     judge_model = args.judge_model or JUDGE_MODEL
     
+    # Resolve API config from args / env / config.py (used for openai provider and judge)
+    _orig_api_key = args.api_key or os.environ.get("OPENAI_API_KEY") or OPENAI_API_KEY
+    _orig_base_url = args.base_url or os.environ.get("OPENAI_BASE_URL") or OPENAI_BASE_URL
+    
     # Provider-specific setup
     if provider == 'vllm':
-        base_url = args.vllm_url
-        os.environ["OPENAI_BASE_URL"] = base_url
-        os.environ["OPENAI_API_KEY"] = "EMPTY"
+        pass  # vLLM config passed via explicit kwargs, NOT env vars
+    elif provider == 'metaai':
+        pass  # MetaAI uses its own authentication (signature-based), no OpenAI env vars needed
     else:  # openai
-        api_key = args.api_key or os.environ.get("OPENAI_API_KEY") or OPENAI_API_KEY
-        base_url = args.base_url or os.environ.get("OPENAI_BASE_URL") or OPENAI_BASE_URL
-        
-        if not api_key:
+        if not _orig_api_key:
             print("Error: OPENAI_API_KEY not configured.")
             print("Set via: --api-key, OPENAI_API_KEY env var, or config.py")
             return 1
         
-        os.environ["OPENAI_API_KEY"] = api_key
-        if base_url:
-            os.environ["OPENAI_BASE_URL"] = base_url
+        os.environ["OPENAI_API_KEY"] = _orig_api_key
+        if _orig_base_url:
+            os.environ["OPENAI_BASE_URL"] = _orig_base_url
     
     print("=" * 60)
     print(f"🧪 MemBuilder Evaluation")
@@ -460,6 +508,17 @@ def run_evaluation(args) -> int:
     print(f"   模型: {model}")
     print(f"   Judge: {judge_model}")
     print(f"   Provider: {provider}")
+    print(f"   Client: {'internal' if _USING_INTERNAL_CLIENT else 'open-source'}")
+    if OPENAI_EMBEDDINGS_BASE_URL:
+        print(f"   Embedding: {EMBEDDING_MODEL} @ {OPENAI_EMBEDDINGS_BASE_URL}")
+    elif _USING_INTERNAL_CLIENT:
+        print(f"   Embedding: {EMBEDDING_MODEL} (internal auto-fallback)")
+    else:
+        if provider == 'vllm':
+            print(f"   Embedding: {EMBEDDING_MODEL} ⚠️  WARNING: vLLM may not support embeddings!")
+            print(f"              Set OPENAI_EMBEDDINGS_BASE_URL env var for a separate embedding endpoint.")
+        else:
+            print(f"   Embedding: {EMBEDDING_MODEL} (same as chat endpoint)")
     print("=" * 60)
     
     # ========== 处理 --split 参数 ==========
@@ -494,19 +553,56 @@ def run_evaluation(args) -> int:
     print(f"   加载 {len(data)} 条数据")
     
     # ========== 初始化客户端 ==========
-    # 使用 create_llm_client 工厂函数
+    # 使用 create_llm_client 工厂函数 (internal or open-source, auto-detected)
     kwargs = {}
     if provider == 'vllm':
         kwargs['base_url'] = args.vllm_url
+        kwargs['api_key'] = 'EMPTY'
     elif provider == 'openai':
         if args.base_url:
             kwargs['base_url'] = args.base_url
         if args.api_key:
             kwargs['api_key'] = args.api_key
+    elif provider == 'metaai':
+        if not _USING_INTERNAL_CLIENT:
+            print("Error: --provider metaai requires llm_client_internal.py (internal only).")
+            return 1
     
     llm_client = create_llm_client(provider=provider, model=model, **kwargs)
-    judge_client = create_llm_client(provider=provider, model=judge_model, **kwargs)
+    
+    # Judge uses a separate provider when the main provider can't run judge models
+    judge_provider = args.judge_provider
+    if judge_provider is None:
+        if provider == 'vllm':
+            # vLLM only serves the loaded model; judge needs a full API
+            judge_provider = 'metaai' if _USING_INTERNAL_CLIENT else 'openai'
+        else:
+            judge_provider = provider
+    
+    if judge_provider == 'metaai' and not _USING_INTERNAL_CLIENT:
+        print("Error: judge-provider metaai requires llm_client_internal.py (internal only).")
+        return 1
+    
+    # Build judge kwargs: when judge uses a different provider than main,
+    # pass the original (pre-vLLM-override) API config so the judge doesn't
+    # accidentally point at the vLLM server.
+    if judge_provider == provider:
+        judge_kwargs = kwargs
+    else:
+        judge_kwargs = {}
+        if judge_provider == 'openai':
+            if _orig_api_key:
+                judge_kwargs['api_key'] = _orig_api_key
+            if _orig_base_url:
+                judge_kwargs['base_url'] = _orig_base_url
+            if not _orig_api_key:
+                print("⚠️  Warning: No OpenAI API key found for judge.")
+                print("   Set OPENAI_API_KEY env var or --api-key before running.")
+    
+    judge_client = create_llm_client(provider=judge_provider, model=judge_model, **judge_kwargs)
     judge = LLMJudge(judge_client)
+    
+    print(f"   Judge Provider: {judge_provider}")
     
     # ========== 按对话分组处理 (LOCOMO) ==========
     if args.dataset == 'locomo':
@@ -552,7 +648,7 @@ def run_evaluation(args) -> int:
                 conv_sample['haystack_session_datetimes'] = conv_sample['haystack_session_datetimes'][:args.sessions]
             
             # 初始化 MemorySystem
-            memory = MemorySystem(llm_client=llm_client)
+            memory = _create_memory_system(llm_client)
             
             # 构建记忆
             if args.mode in ['full', 'build']:
@@ -641,7 +737,7 @@ def run_evaluation(args) -> int:
         
         # Prepare arguments for each sample
         sample_args_list = [
-            (sample, i, len(data), provider, model, judge_model, kwargs,
+            (sample, i, len(data), provider, model, judge_model, judge_provider, kwargs, judge_kwargs,
              args.sessions, args.top_k, args.mode, args.verbose)
             for i, sample in enumerate(data, 1)
         ]
@@ -690,7 +786,7 @@ def run_evaluation(args) -> int:
                         sample['haystack_session_datetimes'] = sample['haystack_session_datetimes'][:args.sessions]
                 
                 # 初始化 MemorySystem
-                memory = MemorySystem(llm_client=llm_client)
+                memory = _create_memory_system(llm_client)
                 
                 # 构建记忆
                 if args.mode in ['full', 'build']:
@@ -797,7 +893,7 @@ def run_evaluation(args) -> int:
                     character['haystack_session_datetimes'] = character['haystack_session_datetimes'][:args.sessions]
             
             # 初始化 MemorySystem
-            memory = MemorySystem(llm_client=llm_client)
+            memory = _create_memory_system(llm_client)
             
             # 构建记忆
             if args.mode in ['full', 'build']:
@@ -905,8 +1001,11 @@ def main():
     
     # Provider options
     parser.add_argument('--provider', default='openai', 
-                       choices=['openai', 'vllm'],
+                       choices=['openai', 'vllm', 'metaai'],
                        help='LLM provider (default: openai). Use --base-url to specify API endpoint.')
+    parser.add_argument('--judge-provider', default=None,
+                       choices=['openai', 'vllm', 'metaai'],
+                       help='Judge LLM provider (default: same as --provider, or metaai when --provider=vllm)')
     parser.add_argument('--base-url', default=None, help='OpenAI API base URL')
     parser.add_argument('--api-key', default=None, help='OpenAI API key')
     parser.add_argument('--vllm-url', default='http://localhost:8000/v1', help='vLLM server URL')

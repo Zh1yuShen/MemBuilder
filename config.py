@@ -8,6 +8,11 @@ import os
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")
 
+# Separate embedding endpoint (for when chat and embedding use different providers,
+# e.g., vLLM for chat + external API for embeddings)
+OPENAI_EMBEDDINGS_BASE_URL = os.environ.get("OPENAI_EMBEDDINGS_BASE_URL", "")
+OPENAI_EMBEDDINGS_API_KEY = os.environ.get("OPENAI_EMBEDDINGS_API_KEY", "")
+
 # =============================================================================
 # Model Configuration (Paper Section 4.1 - Implementation Details)
 # =============================================================================

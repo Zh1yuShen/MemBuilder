@@ -38,19 +38,24 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from memory_system import MemorySystem
-from llm_client import OpenAIClient
 from config import SFT_EXPERT_MODEL
+
+# Internal client provides MetaAI support; falls back to open-source client.
+try:
+    from llm_client_internal import create_llm_client as _factory_create_client
+    _USING_INTERNAL_CLIENT = True
+except ImportError:
+    from llm_client import create_llm_client as _factory_create_client
+    _USING_INTERNAL_CLIENT = False
+
+from llm_client import OpenAIClient  # backward compat alias
 
 # Provider factory: creates the appropriate LLM client
 _LLM_CLIENT_PROVIDER = "openai"  # default; set to "metaai" via CLI
 
 def _create_llm_client(model: str):
     """Create LLM client based on the global provider setting."""
-    if _LLM_CLIENT_PROVIDER == "metaai":
-        from llm_client_internal import MetaAIStableClient
-        return MetaAIStableClient(model=model, requests_per_second=0.5)
-    else:
-        return OpenAIClient(model=model)
+    return _factory_create_client(provider=_LLM_CLIENT_PROVIDER, model=model)
 
 class _RecordingClientWrapper:
     """Thin wrapper that records LLM chat_completion calls for trajectory logging,
@@ -434,8 +439,9 @@ def main():
     parser.add_argument("--parallel", action="store_true", help="Enable parallel processing")
     parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers")
     parser.add_argument("--skip-existing", action="store_true", help="Skip existing trajectories")
-    parser.add_argument("--provider", type=str, default="openai", choices=["openai", "metaai"],
-                       help="LLM provider (openai or metaai, default: openai)")
+    _provider_choices = ["openai", "metaai"] if _USING_INTERNAL_CLIENT else ["openai"]
+    parser.add_argument("--provider", type=str, default="openai", choices=_provider_choices,
+                       help="LLM provider (default: openai)")
     
     args = parser.parse_args()
     
