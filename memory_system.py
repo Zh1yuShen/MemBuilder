@@ -534,6 +534,11 @@ Provide a concise, direct answer based on the available information, or state "N
                 response_format={"type": "json_object"}
             )
             
+            # 检查响应是否为空
+            if not response or not response.strip():
+                print(f"  Core Agent warning: Empty response from LLM, skipping")
+                return ("SKIP", self.core_memory.human)
+            
             result = json.loads(response)
             operation = result.get("operation", "APPEND")
             
@@ -567,6 +572,10 @@ Provide a concise, direct answer based on the available information, or state "N
             
             return (operation, self.core_memory.human)
             
+        except json.JSONDecodeError as e:
+            print(f"  Core Agent JSON error: {str(e)[:100]}")
+            print(f"    Response preview: {response[:200] if response else '[Empty]'}")
+            return ("ERROR", "")
         except Exception as e:
             print(f"  Core Agent error: {str(e)[:100]}")
             return ("ERROR", "")

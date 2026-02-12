@@ -41,7 +41,45 @@ from memory_system import MemorySystem
 from llm_client import OpenAIClient
 from config import SFT_EXPERT_MODEL
 
-from jinja2 import Template
+# Provider factory: creates the appropriate LLM client
+_LLM_CLIENT_PROVIDER = "openai"  # default; set to "metaai" via CLI
+
+def _create_llm_client(model: str):
+    """Create LLM client based on the global provider setting."""
+    if _LLM_CLIENT_PROVIDER == "metaai":
+        from llm_client_internal import MetaAIStableClient
+        return MetaAIStableClient(model=model, requests_per_second=0.5)
+    else:
+        return OpenAIClient(model=model)
+
+class _RecordingClientWrapper:
+    """Thin wrapper that records LLM chat_completion calls for trajectory logging,
+    while delegating all execution to the underlying client."""
+
+    def __init__(self, real_client):
+        self._real = real_client
+        self.calls = []  # list of {prompt, response, time_ms}
+
+    def chat_completion(self, **kwargs):
+        prompt = ""
+        msgs = kwargs.get("messages", [])
+        if msgs:
+            prompt = msgs[0].get("content", "")
+        start = time.time()
+        result = self._real.chat_completion(**kwargs)
+        elapsed_ms = (time.time() - start) * 1000
+        self.calls.append({"prompt": prompt, "response": result, "time_ms": elapsed_ms})
+        return result
+
+    def get_embeddings(self, *args, **kwargs):
+        return self._real.get_embeddings(*args, **kwargs)
+
+    def __getattr__(self, name):
+        """Delegate unknown attributes to the real client."""
+        return getattr(self._real, name)
+
+    def clear(self):
+        self.calls = []
 
 
 class ExpertTrajectoryGenerator:
@@ -81,9 +119,10 @@ class ExpertTrajectoryGenerator:
         states_dir = conv_dir / "states"
         states_dir.mkdir(exist_ok=True)
         
-        # Initialize memory system with expert model
-        llm_client = OpenAIClient(model=self.expert_model)
-        memory = MemorySystem(llm_client=llm_client)
+        # Initialize memory system with recording wrapper around the real client
+        real_client = _create_llm_client(model=self.expert_model)
+        recording_client = _RecordingClientWrapper(real_client)
+        memory = MemorySystem(llm_client=recording_client)
         
         # Process each session
         agent_calls = []
@@ -149,6 +188,7 @@ class ExpertTrajectoryGenerator:
         timestamp: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         calls = []
+        all_searchable_memories = []  # Collect memories; batch-insert after all agents
 
         core_call = self._call_core_agent(
             memory_system=memory,
@@ -162,17 +202,26 @@ class ExpertTrajectoryGenerator:
         calls.append(core_call)
 
         for agent_type in ["episodic", "semantic", "procedural"]:
-            calls.append(
-                self._call_memory_agent(
-                    memory_system=memory,
-                    agent_type=agent_type,
-                    messages=messages,
-                    session_index=session_index,
-                    conv_id=conv_id,
-                    user_id=user_id,
-                    state_before_path=state_before_path,
-                    timestamp=timestamp,
-                )
+            call_record, memories = self._call_memory_agent(
+                memory_system=memory,
+                agent_type=agent_type,
+                messages=messages,
+                session_index=session_index,
+                conv_id=conv_id,
+                user_id=user_id,
+                state_before_path=state_before_path,
+                timestamp=timestamp,
+            )
+            calls.append(call_record)
+            all_searchable_memories.extend(memories)
+
+        # Batch-insert all searchable memories AFTER all agents complete
+        # (matches MemorySystem.add() behavior where agents run in parallel
+        # and all see the same vector store state)
+        if all_searchable_memories:
+            memory.vector_store.add(
+                all_searchable_memories,
+                [{"user_id": user_id, "type": "memory"} for _ in all_searchable_memories],
             )
 
         return calls
@@ -187,49 +236,23 @@ class ExpertTrajectoryGenerator:
         state_before_path: str,
         timestamp: Optional[str] = None,
     ) -> Dict[str, Any]:
-        current_core = memory_system.core_memory.human if memory_system.core_memory.human else "[Empty]"
+        # Capture state before for recording
+        current_core = memory_system.core_memory.human or "[Empty]"
         core_usage = memory_system.core_memory.get_usage()
 
-        formatted_messages = memory_system._format_messages(messages)
-        template = Template(memory_system.prompts["core"])
-        full_prompt = template.render(
-            current_core_memory=current_core,
-            core_usage=core_usage,
-            messages=formatted_messages,
-        )
+        # Clear recorder, then delegate ALL logic to MemorySystem._core_agent
+        # (handles APPEND/REPLACE/REWRITE, content validation, compression)
+        recording = memory_system.llm_client
+        recording.clear()
 
         call_start = time.time()
-        response = memory_system.llm_client.chat_completion(
-            messages=[{"role": "user", "content": full_prompt}],
-            temperature=0.0,
-            response_format={"type": "json_object"},
-        )
+        operation, new_core_memory = memory_system._core_agent(messages, user_id)
         call_time_ms = (time.time() - call_start) * 1000
 
-        # Use memory_system's JSON cleaning method (handles markdown-wrapped JSON)
-        clean_response = memory_system._clean_json_response(response)
-        result = json.loads(clean_response)
-        operation = result.get("operation", "APPEND")
+        # Retrieve the prompt from the recorded wrapper (first call = agent decision)
+        full_prompt = recording.calls[0]["prompt"] if recording.calls else ""
 
-        if operation == "APPEND":
-            content = result.get("content", "")
-            if content:
-                memory_system.core_memory.human = (
-                    memory_system.core_memory.human + f"\n{content}"
-                    if memory_system.core_memory.human
-                    else content
-                )
-        elif operation == "REPLACE":
-            old_text = result.get("old_text", "")
-            new_text = result.get("new_text", "")
-            if old_text and new_text:
-                memory_system.core_memory.human = memory_system.core_memory.human.replace(old_text, new_text)
-        elif operation == "REWRITE":
-            content = result.get("content", "")
-            if content:
-                memory_system.core_memory.human = content
-
-        call_record = {
+        return {
             "conversation_id": conv_id,
             "session_index": session_index,
             "agent_type": "core",
@@ -249,7 +272,7 @@ class ExpertTrajectoryGenerator:
             },
             "expert_output": {
                 "operation": operation,
-                "new_core_memory": memory_system.core_memory.human,
+                "new_core_memory": new_core_memory,
             },
             "metadata": {
                 "expert_model": self.expert_model,
@@ -258,8 +281,6 @@ class ExpertTrajectoryGenerator:
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             },
         }
-
-        return call_record
 
     def _call_memory_agent(
         self,
@@ -272,60 +293,40 @@ class ExpertTrajectoryGenerator:
         state_before_path: str,
         timestamp: Optional[str] = None,
     ) -> Dict[str, Any]:
+        # Capture existing memories for recording
         existing = memory_system._get_existing_memories(agent_type, user_id, messages)
-        formatted_messages = memory_system._format_messages(messages)
 
-        template = Template(memory_system.prompts[agent_type])
-        if agent_type == "episodic":
-            full_prompt = template.render(
-                existing_episodic="\n".join(existing) if existing else "[No existing memories]",
-                messages=formatted_messages,
-                conversation_timestamp=timestamp or "Not provided",
-            )
-        elif agent_type == "semantic":
-            full_prompt = template.render(
-                existing_semantic="\n".join(existing) if existing else "[No existing memories]",
-                messages=formatted_messages,
-            )
-        else:
-            full_prompt = template.render(
-                existing_procedural="\n".join(existing) if existing else "[No existing memories]",
-                messages=formatted_messages,
-            )
+        # Clear recorder, then delegate ALL logic to MemorySystem's agent method
+        # (handles JSON retry, operation parsing, memory extraction with prefixes)
+        recording = memory_system.llm_client
+        recording.clear()
 
         call_start = time.time()
-        response = memory_system.llm_client.chat_completion(
-            messages=[{"role": "user", "content": full_prompt}],
-            temperature=0.0,
-            response_format={"type": "json_object"},
-        )
+        metadata_dict = {"timestamp": timestamp} if timestamp else None
+
+        if agent_type == "episodic":
+            memories, stats = memory_system._episodic_agent(messages, user_id, metadata_dict)
+        elif agent_type == "semantic":
+            memories, stats = memory_system._semantic_agent(messages, user_id)
+        else:  # procedural
+            memories, stats = memory_system._procedural_agent(messages, user_id)
+
         call_time_ms = (time.time() - call_start) * 1000
 
-        # Use memory_system's JSON cleaning method (handles markdown-wrapped JSON)
-        clean_response = memory_system._clean_json_response(response)
-        result = json.loads(clean_response)
-        operations = result.get("operations", [])
+        # Retrieve prompt and raw response from the recording wrapper
+        full_prompt = recording.calls[0]["prompt"] if recording.calls else ""
 
-        memories_added = []
-        prefix = f"[{agent_type.upper()}]"
-        for op in operations:
-            action = op.get("action", "")
-            if action == "ADD":
-                mem = op.get("memory", "")
-            elif action in ["UPDATE", "MERGE"]:
-                mem = op.get("new_memory", "")
-            else:
-                mem = ""
+        # Parse raw response for the operations list (for call record)
+        operations = []
+        if recording.calls:
+            last_response = recording.calls[-1]["response"]
+            try:
+                clean = memory_system._clean_json_response(last_response)
+                operations = json.loads(clean).get("operations", [])
+            except Exception:
+                pass
 
-            if mem:
-                mem = str(mem)
-                if not mem.startswith(prefix):
-                    mem = f"{prefix} {mem}"
-                memories_added.append(mem)
-
-        if memories_added:
-            memory_system.vector_store.add(memories_added, [{"user_id": user_id, "type": "memory"} for _ in memories_added])
-
+        # Return call record AND memories list (caller batches vector store insertion)
         call_record = {
             "conversation_id": conv_id,
             "session_index": session_index,
@@ -348,7 +349,7 @@ class ExpertTrajectoryGenerator:
             },
             "expert_output": {
                 "operations": operations,
-                "memories_added": memories_added,
+                "memories_added": memories,
             },
             "metadata": {
                 "expert_model": self.expert_model,
@@ -357,8 +358,7 @@ class ExpertTrajectoryGenerator:
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             },
         }
-
-        return call_record
+        return call_record, memories
     
     def generate_batch(
         self,
@@ -434,8 +434,15 @@ def main():
     parser.add_argument("--parallel", action="store_true", help="Enable parallel processing")
     parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers")
     parser.add_argument("--skip-existing", action="store_true", help="Skip existing trajectories")
+    parser.add_argument("--provider", type=str, default="openai", choices=["openai", "metaai"],
+                       help="LLM provider (openai or metaai, default: openai)")
     
     args = parser.parse_args()
+    
+    # Set global provider
+    global _LLM_CLIENT_PROVIDER
+    _LLM_CLIENT_PROVIDER = args.provider
+    print(f"LLM provider: {args.provider}")
     
     # Handle --split parameter: convert to subset_file path
     if args.split and args.dataset == "longmemeval":
