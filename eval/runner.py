@@ -501,11 +501,11 @@ def run_evaluation(args) -> int:
     print(f"   模型: {model}")
     print(f"   Judge: {judge_model}")
     print(f"   Provider: {provider}")
-    print(f"   Client: {'internal' if _USING_INTERNAL_CLIENT else 'open-source'}")
+    print(f"   Client: {AVAILABLE_PROVIDERS}")
     if OPENAI_EMBEDDINGS_BASE_URL:
         print(f"   Embedding: {EMBEDDING_MODEL} @ {OPENAI_EMBEDDINGS_BASE_URL}")
-    elif _USING_INTERNAL_CLIENT:
-        print(f"   Embedding: {EMBEDDING_MODEL} (internal auto-fallback)")
+    elif len(AVAILABLE_PROVIDERS) > 2:
+        print(f"   Embedding: {EMBEDDING_MODEL} (auto-fallback)")
     else:
         if provider == 'vllm':
             print(f"   Embedding: {EMBEDDING_MODEL} ⚠️  WARNING: vLLM may not support embeddings!")
