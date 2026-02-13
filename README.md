@@ -74,18 +74,33 @@ python -m eval.runner --dataset longmemeval \
 python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
 ```
 
-**Key options:**
-- `--mode build`: Build memory only (save to disk)
-- `--mode answer`: Answer only (load saved memory)
-- `--mode full`: Build + Answer (default)
-- `--provider`: LLM provider (`openai`, `vllm`, or others via internal client)
-- `--judge-provider`: Separate provider for the LLM judge
-- `--base-url`: API base URL (default: `http://localhost:8000/v1` for vllm)
-- `--api-key`: API key (default: EMPTY for vllm; or set `OPENAI_API_KEY` env var)
-- `--sessions N`: Limit to first N sessions
-- `--questions N`: Limit to first N questions
-- `--parallel`: Enable parallel sample processing (LongMemEval)
-- `--verbose`: Show detailed output
+**All options for `eval/runner.py`:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--dataset` | `locomo` | Dataset: `locomo`, `longmemeval`, or `perltqa` |
+| `--conv-id` | | Conversation ID (locomo) |
+| `--sample-id` | | Sample ID (longmemeval) |
+| `--character-id` | | Character ID (perltqa) |
+| `--split` | | Predefined split: `sft`, `rl`, or `test` (longmemeval) |
+| `--subset-file` | | Path to JSON file with sample IDs |
+| `--mode` | `full` | `build` (memory only), `answer` (QA only), or `full` |
+| `--model` | from config | LLM model for memory agents |
+| `--judge-model` | from config | LLM model for answer evaluation |
+| `--provider` | `openai` | LLM provider (`openai`, `vllm`) |
+| `--judge-provider` | same as `--provider` | Judge provider (auto-falls back to API when main is vllm) |
+| `--base-url` | | API base URL (default: `http://localhost:8000/v1` for vllm) |
+| `--api-key` | | API key (default: `EMPTY` for vllm; or set `OPENAI_API_KEY`) |
+| `--sessions N` | all | Limit number of sessions to build |
+| `--questions N` | all | Limit number of questions to test |
+| `--top-k` | from config | Top-K memories for QA retrieval |
+| `--db-path` | auto | Custom database path for memory persistence |
+| `--vector-store` | `faiss` | Vector store backend |
+| `--concurrency` | `1` | Concurrent workers for answering (locomo) |
+| `--parallel` | off | Enable parallel sample processing (longmemeval) |
+| `--workers` | `4` | Number of parallel workers |
+| `--output-dir` | `logs` | Output directory for results |
+| `--verbose` | off | Show detailed output |
 
 **Using vLLM (self-hosted models):**
 ```bash
@@ -116,7 +131,8 @@ python scripts/generate_expert_trajectories.py \
     --split sft \
     --output-dir expert_trajectories/longmemeval_sft \
     --expert-model claude-4.5-sonnet \
-    --provider openai  # or other available providers
+    --provider openai \
+    --skip-existing
 
 # Generate expert trajectories for RL (50 separate dialogues)
 python scripts/generate_expert_trajectories.py \
@@ -133,6 +149,22 @@ python scripts/generate_expert_trajectories.py \
 # └── metadata.json
 ```
 
+**All options for `generate_expert_trajectories.py`:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--dataset` | (required) | Dataset name |
+| `--dataset-path` | | Path to custom dataset file (JSONL/JSON) |
+| `--conv-id` | | Single conversation ID to process |
+| `--subset-file` | | JSON file with conversation IDs |
+| `--split` | | Predefined split: `sft`, `rl`, or `test` |
+| `--expert-model` | from config | Expert model for generation |
+| `--output-dir` | `./expert_trajectories` | Output directory |
+| `--provider` | `openai` | LLM provider (`openai`, `vllm`) |
+| `--parallel` | off | Enable parallel processing |
+| `--workers` | `4` | Number of parallel workers |
+| `--skip-existing` | off | Skip already-generated trajectories |
+
 > **Note**: SFT and RL use **different** dialogue subsets to avoid data leakage. LoCoMo and PerLTQA serve as out-of-distribution test sets.
 
 ---
@@ -146,7 +178,8 @@ python scripts/generate_expert_trajectories.py \
 #    (~9,600 samples: 2,400 sessions × 4 memory types)
 python scripts/convert_trajectories_to_sft.py \
     --trajectory-dir expert_trajectories/longmemeval_sft \
-    --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json
+    --output-file /path/to/LLaMA-Factory/data/memory_building_sft.json \
+    --max-length 20000
 
 # 2. Register dataset in LLaMA-Factory/data/dataset_info.json
 #    Add: "memory_building_sft": {"file_name": "memory_building_sft.json"}
