@@ -10,7 +10,7 @@ Usage:
     python -m eval.runner --dataset locomo --mode full
     
     # 使用 vLLM
-    python -m eval.runner --dataset locomo --provider vllm --vllm-url http://localhost:8000/v1
+    python -m eval.runner --dataset locomo --provider vllm --base-url http://localhost:8000/v1
 """
 
 import argparse
@@ -549,8 +549,8 @@ def run_evaluation(args) -> int:
     # 使用 create_llm_client 工厂函数 (internal or open-source, auto-detected)
     kwargs = {}
     if provider == 'vllm':
-        kwargs['base_url'] = args.vllm_url
-        kwargs['api_key'] = 'EMPTY'
+        kwargs['base_url'] = args.base_url or 'http://localhost:8000/v1'
+        kwargs['api_key'] = args.api_key or 'EMPTY'
     elif provider == 'openai':
         if args.base_url:
             kwargs['base_url'] = args.base_url
@@ -993,13 +993,14 @@ def main():
     _provider_choices = AVAILABLE_PROVIDERS
     parser.add_argument('--provider', default='openai', 
                        choices=_provider_choices,
-                       help='LLM provider (default: openai). Use --base-url to specify API endpoint.')
+                       help='LLM provider (default: openai)')
     parser.add_argument('--judge-provider', default=None,
                        choices=_provider_choices,
-                       help='Judge LLM provider (default: same as --provider, or auto-detected when --provider=vllm)')
-    parser.add_argument('--base-url', default=None, help='OpenAI API base URL')
-    parser.add_argument('--api-key', default=None, help='OpenAI API key')
-    parser.add_argument('--vllm-url', default='http://localhost:8000/v1', help='vLLM server URL')
+                       help='Judge provider (default: same as --provider; auto-falls back to API when --provider=vllm)')
+    parser.add_argument('--base-url', default=None,
+                       help='API base URL (default: http://localhost:8000/v1 for vllm)')
+    parser.add_argument('--api-key', default=None,
+                       help='API key (default: EMPTY for vllm; or set OPENAI_API_KEY env var)')
     
     # Retrieval options
     parser.add_argument('--top-k', type=int, default=QA_ANSWERING_TOP_K, help='Top-K memories')

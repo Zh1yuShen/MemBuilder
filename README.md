@@ -80,9 +80,8 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 - `--mode full`: Build + Answer (default)
 - `--provider`: LLM provider (`openai`, `vllm`, or others via internal client)
 - `--judge-provider`: Separate provider for the LLM judge
-- `--base-url`: Custom OpenAI-compatible API endpoint
-- `--api-key`: API key (or set `OPENAI_API_KEY` env var)
-- `--vllm-url`: vLLM server URL (default: `http://localhost:8000/v1`)
+- `--base-url`: API base URL (default: `http://localhost:8000/v1` for vllm)
+- `--api-key`: API key (default: EMPTY for vllm; or set `OPENAI_API_KEY` env var)
 - `--sessions N`: Limit to first N sessions
 - `--questions N`: Limit to first N questions
 - `--parallel`: Enable parallel sample processing (LongMemEval)
@@ -91,7 +90,7 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 **Using vLLM (self-hosted models):**
 ```bash
 python -m eval.runner --dataset longmemeval --split test \
-    --provider vllm --vllm-url http://localhost:8000/v1 \
+    --provider vllm --base-url http://localhost:8000/v1 \
     --model Qwen/Qwen3-4B
 ```
 
@@ -275,7 +274,7 @@ bash scripts/launch_vllm_openai_server.sh models/hf_model 8000 1
 
 # Evaluate with vLLM-hosted model
 python -m eval.runner --dataset longmemeval --split test \
-    --provider vllm --vllm-url http://localhost:8000/v1 \
+    --provider vllm --base-url http://localhost:8000/v1 \
     --model models/hf_model
 
 # Note: vLLM doesn't support embeddings, configure separately:
