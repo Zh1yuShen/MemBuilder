@@ -33,7 +33,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import QA_GENERATION_MODEL
 from qa_generator import QAGenerator
-from llm_client import OpenAIClient
+try:
+    from llm_client_internal import OpenAIClient
+except ImportError:
+    from llm_client import OpenAIClient
 from memory_system import MemorySystem
 
 

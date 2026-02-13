@@ -51,7 +51,7 @@ def _make_embedding_func():
     
     Only activates when OPENAI_EMBEDDINGS_BASE_URL is explicitly set in env/config.
     Otherwise returns None — the llm_client handles embedding internally
-    (internal client auto-falls back to yunwu.ai for vLLM; open-source uses same endpoint).
+    (internal client has auto-fallback for embeddings; open-source uses same endpoint).
     
     Returns:
         Embedding function, or None.

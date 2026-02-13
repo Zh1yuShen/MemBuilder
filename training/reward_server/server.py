@@ -30,12 +30,18 @@ def debug_print(*args, **kwargs):
 
 try:
     from config import EMBEDDING_MODEL, ANSWER_MODEL, JUDGE_MODEL, QA_ANSWERING_TOP_K
-    from llm_client import OpenAIClient
+    try:
+        from llm_client_internal import OpenAIClient
+    except ImportError:
+        from llm_client import OpenAIClient
     from memory_system import MemorySystem
     from eval.llm_judge import evaluate_answer
 except Exception:
     from ...config import EMBEDDING_MODEL, ANSWER_MODEL, JUDGE_MODEL, QA_ANSWERING_TOP_K
-    from ...llm_client import OpenAIClient
+    try:
+        from ...llm_client_internal import OpenAIClient
+    except ImportError:
+        from ...llm_client import OpenAIClient
     from ...memory_system import MemorySystem
     from ...eval.llm_judge import evaluate_answer
 

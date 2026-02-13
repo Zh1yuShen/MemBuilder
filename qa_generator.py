@@ -312,7 +312,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Import LLM client
-    from llm_client import OpenAIClient
+    try:
+        from llm_client_internal import OpenAIClient
+    except ImportError:
+        from llm_client import OpenAIClient
     
     # Initialize client
     llm_client = OpenAIClient(
