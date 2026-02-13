@@ -78,9 +78,22 @@ python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model 
 - `--mode build`: Build memory only (save to disk)
 - `--mode answer`: Answer only (load saved memory)
 - `--mode full`: Build + Answer (default)
+- `--provider`: LLM provider (`openai`, `vllm`, or others via internal client)
+- `--judge-provider`: Separate provider for the LLM judge
+- `--base-url`: Custom OpenAI-compatible API endpoint
+- `--api-key`: API key (or set `OPENAI_API_KEY` env var)
+- `--vllm-url`: vLLM server URL (default: `http://localhost:8000/v1`)
 - `--sessions N`: Limit to first N sessions
 - `--questions N`: Limit to first N questions
+- `--parallel`: Enable parallel sample processing (LongMemEval)
 - `--verbose`: Show detailed output
+
+**Using vLLM (self-hosted models):**
+```bash
+python -m eval.runner --dataset longmemeval --split test \
+    --provider vllm --vllm-url http://localhost:8000/v1 \
+    --model Qwen/Qwen3-4B
+```
 
 ---
 
@@ -103,14 +116,16 @@ python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split sft \
     --output-dir expert_trajectories/longmemeval_sft \
-    --expert-model claude-4.5-sonnet
+    --expert-model claude-4.5-sonnet \
+    --provider openai  # or other available providers
 
 # Generate expert trajectories for RL (50 separate dialogues)
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split rl \
     --output-dir expert_trajectories/longmemeval_rl \
-    --expert-model claude-4.5-sonnet
+    --expert-model claude-4.5-sonnet \
+    --provider openai
 
 # Output structure:
 # expert_trajectories/{dataset}/{sample_id}/
@@ -210,7 +225,7 @@ bash scripts/run_memory_grpo_multinode.sh
 ```
 MemBuilder/
 ├── config.py              # All configuration constants
-├── llm_client.py          # OpenAI-compatible API client
+├── llm_client.py          # OpenAI-compatible API client (exports AVAILABLE_PROVIDERS)
 ├── memory_system.py       # Multi-dimensional memory system
 ├── prompts.py             # Agent prompt templates
 ├── qa_generator.py        # Synthetic QA generation
@@ -257,6 +272,11 @@ bash scripts/convert_verl_to_hf.sh checkpoints/global_step_100 models/hf_model
 
 # Deploy with vLLM
 bash scripts/launch_vllm_openai_server.sh models/hf_model 8000 1
+
+# Evaluate with vLLM-hosted model
+python -m eval.runner --dataset longmemeval --split test \
+    --provider vllm --vllm-url http://localhost:8000/v1 \
+    --model models/hf_model
 
 # Note: vLLM doesn't support embeddings, configure separately:
 export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"

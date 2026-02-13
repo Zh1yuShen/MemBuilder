@@ -31,9 +31,9 @@ from memory_system import MemorySystem
 
 # Client module: internal version adds extra providers; public version has openai/vllm only.
 try:
-    from llm_client_internal import OpenAIClient, create_llm_client, AVAILABLE_PROVIDERS, DEFAULT_PROVIDER
+    from llm_client_internal import create_llm_client, AVAILABLE_PROVIDERS, DEFAULT_PROVIDER
 except ImportError:
-    from llm_client import OpenAIClient, create_llm_client, AVAILABLE_PROVIDERS, DEFAULT_PROVIDER
+    from llm_client import create_llm_client, AVAILABLE_PROVIDERS, DEFAULT_PROVIDER
 
 from config import (
     ANSWER_MODEL, JUDGE_MODEL, EMBEDDING_MODEL,

@@ -46,8 +46,6 @@ try:
 except ImportError:
     from llm_client import create_llm_client as _factory_create_client, AVAILABLE_PROVIDERS
 
-from llm_client import OpenAIClient  # backward compat alias
-
 # Provider factory: creates the appropriate LLM client
 _LLM_CLIENT_PROVIDER = "openai"  # default; overridden via --provider CLI arg
 
