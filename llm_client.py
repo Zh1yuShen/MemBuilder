@@ -8,7 +8,7 @@ Usage:
     # Standard OpenAI
     client = create_llm_client(base_url="https://api.openai.com/v1", api_key="sk-...")
     
-    # Local proxy (e.g., MetaAI proxy, vLLM)
+    # Local proxy (e.g., vLLM, custom proxy)
     client = create_llm_client(base_url="http://localhost:8766/v1", api_key="any")
     
     # Other compatible services
@@ -34,7 +34,7 @@ class LLMClient:
     - OpenAI API
     - Azure OpenAI
     - vLLM servers
-    - Local proxy servers (e.g., metaai_openai_proxy.py)
+    - Local proxy servers
     - Any other OpenAI-compatible service
     """
     
