@@ -133,6 +133,10 @@ class LLMClient:
 # Alias for backward compatibility
 OpenAIClient = LLMClient
 
+# Provider registry: what this client module supports
+AVAILABLE_PROVIDERS = ['openai', 'vllm']
+DEFAULT_PROVIDER = 'openai'
+
 
 def create_llm_client(
     api_key: str = None,

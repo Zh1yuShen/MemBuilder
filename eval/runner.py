@@ -29,16 +29,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from memory_system import MemorySystem
 
-# Internal client provides additional provider support and separate embedding endpoints.
-# Falls back to the open-source client if internal module is not available.
+# Client module: internal version adds extra providers; public version has openai/vllm only.
 try:
-    from llm_client_internal import OpenAIClient, create_llm_client
-    _USING_INTERNAL_CLIENT = True
-    _INTERNAL_PROVIDER = 'metaai'
+    from llm_client_internal import OpenAIClient, create_llm_client, AVAILABLE_PROVIDERS, DEFAULT_PROVIDER
 except ImportError:
-    from llm_client import OpenAIClient, create_llm_client
-    _USING_INTERNAL_CLIENT = False
-    _INTERNAL_PROVIDER = None
+    from llm_client import OpenAIClient, create_llm_client, AVAILABLE_PROVIDERS, DEFAULT_PROVIDER
 
 from config import (
     ANSWER_MODEL, JUDGE_MODEL, EMBEDDING_MODEL,
@@ -488,12 +483,8 @@ def run_evaluation(args) -> int:
     _orig_api_key = args.api_key or os.environ.get("OPENAI_API_KEY") or OPENAI_API_KEY
     _orig_base_url = args.base_url or os.environ.get("OPENAI_BASE_URL") or OPENAI_BASE_URL
     
-    # Provider-specific setup
-    if provider == 'vllm':
-        pass  # vLLM config passed via explicit kwargs, NOT env vars
-    elif _INTERNAL_PROVIDER and provider == _INTERNAL_PROVIDER:
-        pass  # Internal provider uses its own authentication
-    else:  # openai
+    # Provider-specific setup (only openai needs env var config here)
+    if provider == 'openai':
         if not _orig_api_key:
             print("Error: OPENAI_API_KEY not configured.")
             print("Set via: --api-key, OPENAI_API_KEY env var, or config.py")
@@ -565,8 +556,7 @@ def run_evaluation(args) -> int:
             kwargs['base_url'] = args.base_url
         if args.api_key:
             kwargs['api_key'] = args.api_key
-    elif _INTERNAL_PROVIDER and provider == _INTERNAL_PROVIDER:
-        pass  # Internal provider kwargs handled by create_llm_client
+    # Other providers (e.g. internal) handle their own auth via create_llm_client
     
     llm_client = create_llm_client(provider=provider, model=model, **kwargs)
     
@@ -575,12 +565,12 @@ def run_evaluation(args) -> int:
     if judge_provider is None:
         if provider == 'vllm':
             # vLLM only serves the loaded model; judge needs a full API
-            judge_provider = _INTERNAL_PROVIDER if _USING_INTERNAL_CLIENT else 'openai'
+            judge_provider = DEFAULT_PROVIDER
         else:
             judge_provider = provider
     
-    if judge_provider == _INTERNAL_PROVIDER and not _USING_INTERNAL_CLIENT:
-        print(f"Error: judge-provider '{judge_provider}' requires llm_client_internal.py (internal only).")
+    if judge_provider not in AVAILABLE_PROVIDERS:
+        print(f"Error: judge-provider '{judge_provider}' not available. Supported: {AVAILABLE_PROVIDERS}")
         return 1
     
     # Build judge kwargs: when judge uses a different provider than main,
@@ -1000,13 +990,13 @@ def main():
     parser.add_argument('--judge-model', default=None, help='LLM model for answer judge')
     
     # Provider options
-    _provider_choices = ['openai', 'vllm', _INTERNAL_PROVIDER] if _USING_INTERNAL_CLIENT else ['openai', 'vllm']
+    _provider_choices = AVAILABLE_PROVIDERS
     parser.add_argument('--provider', default='openai', 
                        choices=_provider_choices,
                        help='LLM provider (default: openai). Use --base-url to specify API endpoint.')
     parser.add_argument('--judge-provider', default=None,
                        choices=_provider_choices,
-                       help='Judge LLM provider (default: same as --provider, or internal when --provider=vllm)')
+                       help='Judge LLM provider (default: same as --provider, or auto-detected when --provider=vllm)')
     parser.add_argument('--base-url', default=None, help='OpenAI API base URL')
     parser.add_argument('--api-key', default=None, help='OpenAI API key')
     parser.add_argument('--vllm-url', default='http://localhost:8000/v1', help='vLLM server URL')
