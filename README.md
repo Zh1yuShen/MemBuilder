@@ -305,14 +305,34 @@ bash scripts/convert_verl_to_hf.sh checkpoints/global_step_100 models/hf_model
 # Deploy with vLLM
 bash scripts/launch_vllm_openai_server.sh models/hf_model 8000 1
 
-# Evaluate with vLLM-hosted model
-python -m eval.runner --dataset longmemeval --split test \
-    --provider vllm --base-url http://localhost:8000/v1 \
-    --model models/hf_model
-
 # Note: vLLM doesn't support embeddings, configure separately:
 export OPENAI_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
 ```
+
+### Two-Step Evaluation (Recommended)
+
+Since the trained model specializes in **memory construction** but may not excel at **question answering**, we recommend a two-step approach: use your trained model for building memories, then a strong API model for answering.
+
+```bash
+# Step 1: Build memories with your vLLM-hosted model
+python -m eval.runner \
+    --provider vllm \
+    --base-url http://localhost:8000/v1 \
+    --model models/hf_model \
+    --dataset locomo \
+    --mode build \
+    --db-path ./faiss_data/locomo/my_model
+
+# Step 2: Answer questions with a strong API model (loads Step 1 memories)
+python -m eval.runner \
+    --provider openai \
+    --model gpt-4.1-mini \
+    --dataset locomo \
+    --mode answer \
+    --db-path ./faiss_data/locomo/my_model
+```
+
+This separates **memory construction** (your trained model's strength) from **QA answering** (where a general-purpose model performs better), giving the best overall evaluation results.
 
 ## Citation
 
