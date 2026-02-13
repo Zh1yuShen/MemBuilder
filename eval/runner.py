@@ -1000,11 +1000,12 @@ def main():
     parser.add_argument('--judge-model', default=None, help='LLM model for answer judge')
     
     # Provider options
+    _provider_choices = ['openai', 'vllm', 'metaai'] if _USING_INTERNAL_CLIENT else ['openai', 'vllm']
     parser.add_argument('--provider', default='openai', 
-                       choices=['openai', 'vllm', 'metaai'],
+                       choices=_provider_choices,
                        help='LLM provider (default: openai). Use --base-url to specify API endpoint.')
     parser.add_argument('--judge-provider', default=None,
-                       choices=['openai', 'vllm', 'metaai'],
+                       choices=_provider_choices,
                        help='Judge LLM provider (default: same as --provider, or metaai when --provider=vllm)')
     parser.add_argument('--base-url', default=None, help='OpenAI API base URL')
     parser.add_argument('--api-key', default=None, help='OpenAI API key')
