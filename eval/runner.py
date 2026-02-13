@@ -489,8 +489,8 @@ def run_evaluation(args) -> int:
     # Provider-specific setup
     if provider == 'vllm':
         pass  # vLLM config passed via explicit kwargs, NOT env vars
-    elif provider == 'metaai':
-        pass  # MetaAI uses its own authentication (signature-based), no OpenAI env vars needed
+    elif _USING_INTERNAL_CLIENT and provider not in ('openai', 'vllm'):
+        pass  # Internal providers use their own authentication
     else:  # openai
         if not _orig_api_key:
             print("Error: OPENAI_API_KEY not configured.")
@@ -563,10 +563,7 @@ def run_evaluation(args) -> int:
             kwargs['base_url'] = args.base_url
         if args.api_key:
             kwargs['api_key'] = args.api_key
-    elif provider == 'metaai':
-        if not _USING_INTERNAL_CLIENT:
-            print("Error: --provider metaai requires llm_client_internal.py (internal only).")
-            return 1
+    # (internal-only providers are already guarded by argparse choices)
     
     llm_client = create_llm_client(provider=provider, model=model, **kwargs)
     
@@ -574,13 +571,15 @@ def run_evaluation(args) -> int:
     judge_provider = args.judge_provider
     if judge_provider is None:
         if provider == 'vllm':
-            # vLLM only serves the loaded model; judge needs a full API
-            judge_provider = 'metaai' if _USING_INTERNAL_CLIENT else 'openai'
+            # vLLM only serves the loaded model; judge needs a separate full API.
+            # Prefer internal provider if available, otherwise fall back to openai.
+            _non_vllm = [p for p in _provider_choices if p != 'vllm']
+            judge_provider = _non_vllm[-1] if _non_vllm else 'openai'
         else:
             judge_provider = provider
     
-    if judge_provider == 'metaai' and not _USING_INTERNAL_CLIENT:
-        print("Error: judge-provider metaai requires llm_client_internal.py (internal only).")
+    if judge_provider not in _provider_choices:
+        print(f"Error: judge-provider '{judge_provider}' is not available. Choose from: {_provider_choices}")
         return 1
     
     # Build judge kwargs: when judge uses a different provider than main,
@@ -1006,7 +1005,7 @@ def main():
                        help='LLM provider (default: openai). Use --base-url to specify API endpoint.')
     parser.add_argument('--judge-provider', default=None,
                        choices=_provider_choices,
-                       help='Judge LLM provider (default: same as --provider, or metaai when --provider=vllm)')
+                       help='Judge LLM provider (default: same as --provider, or auto-detected when --provider=vllm)')
     parser.add_argument('--base-url', default=None, help='OpenAI API base URL')
     parser.add_argument('--api-key', default=None, help='OpenAI API key')
     parser.add_argument('--vllm-url', default='http://localhost:8000/v1', help='vLLM server URL')
