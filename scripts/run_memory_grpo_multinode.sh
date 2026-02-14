@@ -59,19 +59,21 @@ REWARD_FN_PATH="${PROJECT_ROOT}/training/reward_server/reward_function.py"
 REWARD_CONFIG_PATH=${REWARD_CONFIG_PATH:-"${PROJECT_ROOT}/training/reward_server/reward_config.json"}
 
 if [ -z "${MODEL_PATH}" ]; then
-    echo "❌ MODEL_PATH is empty"
-    echo "Usage: MODEL_PATH=/path/to/model TRAIN_DATA=/path/to/data REWARD_SERVER_URL=http://ip:port ./run_memory_grpo_multinode.sh"
-    exit 1
-fi
-
-if [ -z "${TRAIN_DATA}" ]; then
-    echo "❌ TRAIN_DATA is empty"
+    echo "❌ ERROR: Please set MODEL_PATH to your SFT model path"
+    echo "Usage: MODEL_PATH=/path/to/model ./scripts/run_memory_grpo_multinode.sh"
     exit 1
 fi
 
 if [ ! -f "${TRAIN_DATA}" ]; then
-    echo "❌ train file not found: ${TRAIN_DATA}"
+    echo "❌ ERROR: Training data not found at ${TRAIN_DATA}"
+    echo "Run: python scripts/prepare_rl_data.py --trajectories-dir YOUR_TRAJECTORY_DIR --output-file ${TRAIN_DATA}"
     exit 1
+fi
+
+# Check if reward server is running
+if ! curl -s "${REWARD_SERVER_URL}/health" > /dev/null 2>&1; then
+    echo "⚠️  WARNING: Reward server not responding at ${REWARD_SERVER_URL}"
+    echo "Start it with: cd training/reward_server && ./start_server.sh"
 fi
 
 echo "============================================"
