@@ -1,27 +1,29 @@
 #!/bin/bash
 # =============================================================================
-# GRPO多机训练脚本 - verl + Ray 集群模式
-# 
-# 使用方式:
-#   方式1: 手动启动 Ray 集群后，在 head 节点运行此脚本
-#   方式2: 单机模式直接运行
+# MemBuilder ADRPO Training Script (veRL + Ray)
 #
-# 注意: verl 使用 Ray 进行分布式调度，此脚本只需在 head 节点运行一次！
+# Prerequisites:
+#   1. Prepare RL data: python scripts/prepare_rl_data.py ...
+#   2. Start reward server: cd training/reward_server && ./start_server.sh
 #
-# 操作流程:
-#   0. 查看IP: hostname -I | awk '{print $1}'
-#   1. 主机(Head): NCCL_IB_DISABLE=1 NCCL_SOCKET_IFNAME=bond1 ray start --head --port=6379 --dashboard-host=0.0.0.0 --dashboard-port=8265 --num-gpus=8
-#   2. 从机(Worker): NCCL_IB_DISABLE=1 NCCL_SOCKET_IFNAME=bond1 ray start --address=<主机IP>:6379 --num-gpus=8
-#   3. 主机: ray status  # 确认2节点16GPU
-#   4. 主机: ./run_memory_grpo_multinode.sh
-#   5. 停止: Ctrl+C 或 ray stop --force
-#   6. 清理: 两台机器都执行 ray stop --force
+# Usage:
+#   Single node:  MODEL_PATH=/path/to/sft-model ./scripts/run_memory_grpo_multinode.sh
+#   Multi-node:   See Ray cluster setup below
+#
+# Multi-node Ray cluster setup:
+#   0. Get IP: hostname -I | awk '{print $1}'
+#   1. Head:   ray start --head --port=6379 --num-gpus=8
+#   2. Worker: ray start --address=<HEAD_IP>:6379 --num-gpus=8
+#   3. Head:   ray status  # Verify 2 nodes, 16 GPUs
+#   4. Head:   NNODES=2 MODEL_PATH=... ./scripts/run_memory_grpo_multinode.sh
+#   5. Stop:   Ctrl+C or ray stop --force
+#   6. Cleanup: ray stop --force (on all nodes)
 # =============================================================================
 
 set -x
 
 # ============================================
-# 环境配置（不使用 export）
+# Environment
 # ============================================
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -41,12 +43,11 @@ PROJECT_ROOT="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
 PYTHONPATH="${PROJECT_ROOT}:${PYTHONPATH:-}"
 
 # ============================================
-# 用户配置
+# User Configuration
 # ============================================
-# ⭐ Reward Server 地址
 REWARD_SERVER_URL=${REWARD_SERVER_URL:-"http://localhost:8765"}
 
-# 默认路径（可通过环境变量覆盖）
+# Override via environment variables
 MODEL_PATH=${MODEL_PATH:-""}
 TRAIN_DATA=${TRAIN_DATA:-"${PROJECT_ROOT}/data/memory_rl_train.parquet"}
 DATASET_NAME=${DATASET_NAME:-"membuilder"}
@@ -66,7 +67,7 @@ fi
 
 if [ ! -f "${TRAIN_DATA}" ]; then
     echo "❌ ERROR: Training data not found at ${TRAIN_DATA}"
-    echo "Run: python scripts/prepare_rl_data.py --trajectories-dir YOUR_TRAJECTORY_DIR --output-file ${TRAIN_DATA}"
+    echo "Run: python scripts/prepare_rl_data.py --trajectories-dir YOUR_DIR --output-file ${TRAIN_DATA}"
     exit 1
 fi
 
