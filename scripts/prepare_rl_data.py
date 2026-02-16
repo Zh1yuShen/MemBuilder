@@ -34,9 +34,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import QA_GENERATION_MODEL
 from qa_generator import QAGenerator
 try:
-    from llm_client_internal import OpenAIClient
+    from llm_client_internal import create_llm_client, DEFAULT_PROVIDER
 except ImportError:
-    from llm_client import OpenAIClient
+    from llm_client import create_llm_client, DEFAULT_PROVIDER
 from memory_system import MemorySystem
 
 
@@ -126,9 +126,9 @@ class MemoryRLDataPreprocessor:
         records: List[Dict[str, Any]] = []
 
         qa_generator: Optional[QAGenerator] = None
-        qa_llm_client: Optional[OpenAIClient] = None
+        qa_llm_client: Optional[Any] = None
         if add_qa:
-            qa_llm_client = OpenAIClient(model=QA_GENERATION_MODEL)
+            qa_llm_client = create_llm_client(provider=DEFAULT_PROVIDER, model=QA_GENERATION_MODEL)
             qa_generator = QAGenerator(llm_client=qa_llm_client, num_questions=qa_per_session)
 
         agent_order = ["core", "episodic", "semantic", "procedural"]

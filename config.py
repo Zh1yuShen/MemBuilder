@@ -21,10 +21,10 @@ OPENAI_EMBEDDINGS_API_KEY = os.environ.get("OPENAI_EMBEDDINGS_API_KEY", "")
 BASE_MODEL = "Qwen3-4B-Instruct-2507"
 
 # Expert model for SFT trajectory collection
-SFT_EXPERT_MODEL = "claude-4.5-sonnet"
+SFT_EXPERT_MODEL = "claude-sonnet-4-5"
 
 # Expert model for synthetic QA generation
-QA_GENERATION_MODEL = "claude-4.5-opus"
+QA_GENERATION_MODEL = "claude-opus-4-5"
 
 # Answer model for RL reward (Paper F.2: GPT-4.1-mini for both answer generation and judging)
 ANSWER_MODEL = "gpt-4.1-mini"

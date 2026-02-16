@@ -48,30 +48,30 @@ export OPENAI_API_KEY="your-key"
 ```bash
 # 测试单个LoCoMo对话
 python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # 测试单个LongMemEval样本
 python -m eval.runner --dataset longmemeval --sample-id e47becba \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # 测试单个PerLTQA人物
 python -m eval.runner --dataset perltqa --character-id char_000 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 ```
 
 ### 全量基准测试
 
 ```bash
 # LoCoMo：全部10个对话（1,986个问题）
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset locomo --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # LongMemEval：400个隔离测试样本（未用于训练）
 python -m eval.runner --dataset longmemeval \
     --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # PerLTQA：全部31个主角（8,316个问题）
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset perltqa --model claude-sonnet-4-5 --judge-model gpt-4.1
 ```
 
 **关键选项：**
@@ -103,14 +103,14 @@ python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split sft \
     --output-dir expert_trajectories/longmemeval_sft \
-    --expert-model claude-4.5-sonnet
+    --expert-model claude-sonnet-4-5
 
 # 为RL生成专家轨迹（另外50个对话）
 python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split rl \
     --output-dir expert_trajectories/longmemeval_rl \
-    --expert-model claude-4.5-sonnet
+    --expert-model claude-sonnet-4-5
 
 # 输出结构：
 # expert_trajectories/{dataset}/{sample_id}/
@@ -196,8 +196,8 @@ bash scripts/run_memory_grpo_multinode.sh
 
 | 设置 | 默认值 | 说明 |
 |------|--------|------|
-| `SFT_EXPERT_MODEL` | claude-4.5-sonnet | 轨迹生成专家模型 |
-| `QA_GENERATION_MODEL` | claude-4.5-opus | 合成QA专家模型 |
+| `SFT_EXPERT_MODEL` | claude-sonnet-4-5 | 轨迹生成专家模型 |
+| `QA_GENERATION_MODEL` | claude-opus-4-5 | 合成QA专家模型 |
 | `ANSWER_MODEL` | gpt-4.1-mini | QA回答模型 |
 | `JUDGE_MODEL` | gpt-4.1 | LLM Judge评测模型 |
 | `EMBEDDING_MODEL` | text-embedding-3-small | 嵌入模型 |

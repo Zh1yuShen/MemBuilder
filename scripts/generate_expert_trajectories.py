@@ -16,13 +16,13 @@ Usage:
     python generate_expert_trajectories.py \
         --dataset locomo \
         --conv-id conv-26 \
-        --expert-model claude-4.5-sonnet
+        --expert-model claude-sonnet-4-5
 
     # Using predefined split (LongMemEval)
     python generate_expert_trajectories.py \
         --dataset longmemeval \
         --split sft \
-        --expert-model claude-4.5-sonnet \
+        --expert-model claude-sonnet-4-5 \
         --parallel --workers 4
 """
 

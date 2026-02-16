@@ -48,30 +48,30 @@ We evaluate on three benchmarks: **LoCoMo**, **LongMemEval**, and **PerLTQA**.
 ```bash
 # Test single LoCoMo conversation
 python -m eval.runner --dataset locomo --conv-id conv-26 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # Test single LongMemEval sample
 python -m eval.runner --dataset longmemeval --sample-id e47becba \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # Test single PerLTQA character
 python -m eval.runner --dataset perltqa --character-id char_000 \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 ```
 
 ### Full Benchmark Evaluation
 
 ```bash
 # LoCoMo: All 10 conversations (1,986 questions)
-python -m eval.runner --dataset locomo --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset locomo --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # LongMemEval: 400 held-out test samples (not used in training)
 python -m eval.runner --dataset longmemeval \
     --split test \
-    --model claude-4.5-sonnet --judge-model gpt-4.1
+    --model claude-sonnet-4-5 --judge-model gpt-4.1
 
 # PerLTQA: All 31 protagonists (8,316 questions)
-python -m eval.runner --dataset perltqa --model claude-4.5-sonnet --judge-model gpt-4.1
+python -m eval.runner --dataset perltqa --model claude-sonnet-4-5 --judge-model gpt-4.1
 ```
 
 **All options for `eval/runner.py`:**
@@ -130,7 +130,7 @@ python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split sft \
     --output-dir expert_trajectories/longmemeval_sft \
-    --expert-model claude-4.5-sonnet \
+    --expert-model claude-sonnet-4-5 \
     --provider openai \
     --skip-existing
 
@@ -139,7 +139,7 @@ python scripts/generate_expert_trajectories.py \
     --dataset longmemeval \
     --split rl \
     --output-dir expert_trajectories/longmemeval_rl \
-    --expert-model claude-4.5-sonnet \
+    --expert-model claude-sonnet-4-5 \
     --provider openai
 
 # Output structure:
@@ -243,8 +243,8 @@ bash scripts/run_memory_grpo_multinode.sh
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `SFT_EXPERT_MODEL` | claude-4.5-sonnet | Expert for trajectory generation |
-| `QA_GENERATION_MODEL` | claude-4.5-opus | Expert for synthetic QA |
+| `SFT_EXPERT_MODEL` | claude-sonnet-4-5 | Expert for trajectory generation |
+| `QA_GENERATION_MODEL` | claude-opus-4-5 | Expert for synthetic QA |
 | `ANSWER_MODEL` | gpt-4.1-mini | Model for QA answering (during RL reward) |
 | `JUDGE_MODEL` | gpt-4.1 | LLM Judge for evaluation |
 | `EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
