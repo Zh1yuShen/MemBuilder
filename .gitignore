@@ -65,8 +65,13 @@ data/longmemeval/longmemeval_s_cleaned.json
 
 # RL training data (only keep example)
 data/memory_rl_train.parquet
+data/memory_rl_preview_*.parquet
 data/rl_training_data.jsonl
 data/sft_trajectories.jsonl
+
+# Local evaluation artifacts
+scripts/evaluation/
+analysis/
 
 # Expert trajectories (generated, not tracked)
 expert_trajectories/

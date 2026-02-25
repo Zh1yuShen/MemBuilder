@@ -125,8 +125,9 @@ class ExpertTrajectoryGenerator:
         recording_client = _RecordingClientWrapper(real_client)
         memory = MemorySystem(llm_client=recording_client)
         
-        # Process each session
+        # Process each session (with per-session retry on transient errors)
         agent_calls = []
+        max_session_retries = 3
         
         for session_idx, session in enumerate(sessions):
             messages = session.get("messages", session) if isinstance(session, dict) else session
@@ -137,16 +138,32 @@ class ExpertTrajectoryGenerator:
             state_before_path = states_dir / f"state_{session_idx}"
             self._save_state(memory, state_before_path)
 
-            session_calls = self._process_session(
-                memory=memory,
-                messages=messages,
-                session_index=session_idx,
-                conv_id=conv_id,
-                user_id=conv_id,
-                state_before_path=str(state_before_path),
-                timestamp=timestamp,
-            )
-            agent_calls.extend(session_calls)
+            last_error = None
+            for attempt in range(1, max_session_retries + 1):
+                try:
+                    session_calls = self._process_session(
+                        memory=memory,
+                        messages=messages,
+                        session_index=session_idx,
+                        conv_id=conv_id,
+                        user_id=conv_id,
+                        state_before_path=str(state_before_path),
+                        timestamp=timestamp,
+                    )
+                    agent_calls.extend(session_calls)
+                    break  # success
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_session_retries:
+                        wait_sec = attempt * 5
+                        print(f"  ⚠️ Session {session_idx + 1} failed (attempt {attempt}/{max_session_retries}): {str(e)[:80]}")
+                        print(f"     Restoring state and retrying in {wait_sec}s...")
+                        time.sleep(wait_sec)
+                        # Restore memory state from checkpoint before retry
+                        memory.load_state(str(state_before_path))
+                    else:
+                        print(f"  ❌ Session {session_idx + 1} failed after {max_session_retries} attempts: {str(e)[:100]}")
+                        raise last_error
         
         # Save final state
         final_state_path = states_dir / f"state_{len(sessions)}"
