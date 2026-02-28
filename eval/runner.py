@@ -85,10 +85,23 @@ def _create_memory_system(llm_client):
 
 def process_longmemeval_sample(sample_args):
     """Process a single LongMemEval sample (for parallel processing)."""
-    sample, idx, total, provider, model_name, judge_model_name, judge_provider, kwargs, judge_kwargs, max_sessions, top_k, mode, verbose = sample_args
+    (sample, idx, total, provider, model_name, judge_model_name, judge_provider,
+     kwargs, judge_kwargs, max_sessions, top_k, mode, verbose,
+     db_path_root, vector_store) = sample_args
     
     sample_id = sample['question_id']
     user_id = f'test_{sample_id}'
+    
+    # Compute per-sample persistence path (mirrors serial branch)
+    if db_path_root:
+        sample_db_path = os.path.join(db_path_root, sample_id)
+    else:
+        sample_db_path = get_db_path(
+            dataset_name='longmemeval',
+            model_name=model_name,
+            vector_store=vector_store,
+            sample_id=sample_id
+        )
     
     # Create new LLM client for this process
     sample_llm_client = create_llm_client(provider=provider, model=model_name, **kwargs)
@@ -122,6 +135,17 @@ def process_longmemeval_sample(sample_args):
                 verbose=False  # Quiet for parallel
             )
             result['memories_built'] = build_result['total_memories']
+            # Persist to disk so a later --mode answer can reload
+            memory.save(sample_db_path)
+        
+        # Answer-only mode: load previously persisted memories
+        if mode == 'answer':
+            if not memory.load(sample_db_path):
+                result['error'] = f'Memory DB not found at {sample_db_path}; run --mode build first'
+                result['llm_score'] = 0
+                result['is_correct'] = False
+                print(f"[{idx}/{total}] ⚠️  SKIP {sample_id}: 记忆数据库不存在")
+                return result
         
         # Answer question
         if mode in ['full', 'answer']:
@@ -728,7 +752,8 @@ def run_evaluation(args) -> int:
         # Prepare arguments for each sample
         sample_args_list = [
             (sample, i, len(data), provider, model, judge_model, judge_provider, kwargs, judge_kwargs,
-             args.sessions, args.top_k, args.mode, args.verbose)
+             args.sessions, args.top_k, args.mode, args.verbose,
+             args.db_path, args.vector_store)
             for i, sample in enumerate(data, 1)
         ]
         
