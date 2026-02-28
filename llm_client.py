@@ -148,10 +148,16 @@ def create_llm_client(
     """
     Factory function to create LLM client.
     
+    This public version always creates an OpenAI-compatible LLMClient.
+    The ``provider`` parameter is accepted for API compatibility with the
+    internal client module but does not change dispatch behavior here —
+    use ``base_url`` to point at different backends (vLLM, proxies, etc.).
+    
     Args:
         api_key: API key (defaults to OPENAI_API_KEY env var)
         base_url: Base URL (defaults to OPENAI_BASE_URL env var or OpenAI)
         model: Default model name
+        provider: Accepted for interface compatibility; not used for dispatch
         **kwargs: Additional arguments passed to LLMClient
     
     Returns:

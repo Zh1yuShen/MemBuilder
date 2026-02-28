@@ -151,10 +151,13 @@ class MemoryRLDataPreprocessor:
             return []
 
         def compute_state_before_path_str(p: str) -> str:
-            """Normalize state path to relative form."""
+            """Pass through state path for storage in parquet.
+            
+            The reward server handles both absolute and relative paths
+            at load time, so no conversion is needed here.
+            """
             if not p:
                 return ""
-            # Store relative path in parquet for portability
             return str(p)
 
         for (conv_id, session_idx), calls in valid_groups:

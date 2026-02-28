@@ -392,9 +392,12 @@ class MemorySystem:
         """
         Search for relevant memories.
         
+        Results are filtered by user_id metadata to prevent cross-user leakage
+        when a single MemorySystem instance is shared across users.
+        
         Args:
             query: Search query
-            user_id: User identifier
+            user_id: User identifier for metadata filtering
             limit: Number of results (alias for top_k, for compatibility)
             top_k: Number of results to return
         
@@ -403,8 +406,13 @@ class MemorySystem:
         """
         # Support both 'limit' and 'top_k' parameter names for compatibility
         k = limit if limit is not None else top_k
-        results = self.vector_store.search(query, k)
-        return {'results': results}
+        # Fetch extra candidates so we still have enough after user_id filtering
+        raw_results = self.vector_store.search(query, k * 2)
+        filtered = [
+            r for r in raw_results
+            if not r.get("metadata", {}).get("user_id") or r["metadata"]["user_id"] == user_id
+        ]
+        return {'results': filtered[:k]}
     
     def generate_answer(self, question: str, memories: List[Dict] = None, 
                        user_id: str = None, current_time: Optional[str] = None,
