@@ -9,6 +9,7 @@ synthetic question generation to provide dense intermediate rewards.
 """
 
 import json
+import re
 from typing import Dict, List, Optional
 
 from config import QA_GENERATION_MODEL
@@ -69,7 +70,7 @@ class QAGenerator:
                 response_format={"type": "json_object"}
             )
             
-            result = json.loads(response)
+            result = self._parse_json_response(response)
             questions = result.get("questions", [])
             
             # Validate and clean questions
@@ -88,6 +89,29 @@ class QAGenerator:
         except Exception as e:
             print(f"QA generation error: {str(e)[:100]}")
             return []
+
+    @staticmethod
+    def _parse_json_response(response: str) -> Dict:
+        """Parse JSON even if wrapped in markdown code fences."""
+        if not response:
+            raise ValueError("empty response")
+
+        text = response.strip()
+        m = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)
+        if m:
+            text = m.group(1).strip()
+        elif text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z0-9_\-]*\s*", "", text)
+            text = re.sub(r"\s*```$", "", text).strip()
+
+        # Fallback: extract outermost JSON object
+        if not text.startswith("{"):
+            b = re.search(r"\{.*\}", text, re.DOTALL)
+            if b:
+                text = b.group(0)
+
+        text = re.sub(r",\s*([\]\}])", r"\1", text)
+        return json.loads(text)
 
 
 def prepare_rl_dataset(
@@ -203,8 +227,22 @@ def generate_qa_from_trajectories(
         idx = call.get("session_index", 0)
         if idx not in sessions:
             sessions[idx] = {"input": call.get("input", {}), "state_path": None}
-        if call.get("agent_type") == "core" and call.get("state_after_path"):
-            sessions[idx]["state_path"] = trajectory_dir / call["state_after_path"]
+        # Use state_before_path to locate the states directory.
+        # For session N, the memory state AFTER processing = state_{N+1}.
+        if call.get("agent_type") == "core":
+            sbp = call.get("state_before_path", "")
+            if sbp:
+                # sbp is a path like ".../states/state_N", derive state_{N+1}
+                state_before = Path(sbp)
+                states_dir = state_before.parent
+                state_after = states_dir / f"state_{idx + 1}"
+                # sbp may already be relative from CWD; try direct first,
+                # then fall back to joining with trajectory_dir
+                if not state_after.exists() and not state_after.is_absolute():
+                    candidate = trajectory_dir / state_after
+                    if candidate.exists():
+                        state_after = candidate
+                sessions[idx]["state_path"] = state_after
     
     # Load metadata
     metadata_path = trajectory_dir / "metadata.json"
