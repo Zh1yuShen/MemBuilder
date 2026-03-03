@@ -266,6 +266,9 @@ class ExpertTrajectoryGenerator:
         call_start = time.time()
         operation, new_core_memory = memory_system._core_agent(messages, user_id)
         call_time_ms = (time.time() - call_start) * 1000
+        if str(operation).upper() == "ERROR":
+            # Let session-level retry handle transient parsing/request failures.
+            raise RuntimeError(f"Core agent returned ERROR at session {session_index}")
 
         # Retrieve the prompt from the recorded wrapper (first call = agent decision)
         full_prompt = recording.calls[0]["prompt"] if recording.calls else ""

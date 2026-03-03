@@ -68,7 +68,8 @@ def create_sft_sample(call: Dict) -> Optional[Dict]:
         return None
     
     # Skip error outputs
-    if expert_output.get("operation") == "error":
+    operation = expert_output.get("operation")
+    if isinstance(operation, str) and operation.strip().lower() == "error":
         return None
     
     # Normalize output field names to match actual SFT training data format
