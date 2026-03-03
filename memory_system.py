@@ -19,7 +19,7 @@ import os
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from jinja2 import Template
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 
 from config import (
     CORE_MEMORY_CHAR_LIMIT, MEMORY_PREFIXES, 
@@ -253,29 +253,118 @@ class MemorySystem:
             return content
         
         clean = content.strip()
-        
-        # Remove <think> tags
-        if '<think>' in clean and '</think>' in clean:
-            clean = clean.split('</think>')[-1].strip()
-        
-        # Remove markdown code blocks
-        clean = re.sub(r'^```(?:json)?\s*|\s*```$', '', clean).strip()
-        
-        # Extract JSON object
-        json_match = re.search(r'\{.*\}', clean, re.DOTALL)
-        if json_match:
-            clean = json_match.group(0)
-        
-        # Validate JSON
-        try:
-            json.loads(clean)
-            return clean
-        except:
-            return content  # Return original if parsing fails
 
-    def _retry_with_json_validation(self, prompt: str, max_retries: int = 10) -> str:
+        # Remove any think blocks and markdown fences.
+        clean = re.sub(r"<think>.*?</think>", "", clean, flags=re.DOTALL | re.IGNORECASE).strip()
+        clean = re.sub(r"```(?:json)?|```", "", clean, flags=re.IGNORECASE).strip()
+
+        # Robustly extract the first complete JSON object by brace matching.
+        start = clean.find("{")
+        if start == -1:
+            return clean
+
+        depth = 0
+        in_string = False
+        escape = False
+        end = -1
+        for i, ch in enumerate(clean[start:], start=start):
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+
+        if end != -1:
+            return clean[start:end + 1].strip()
+        return clean[start:].strip()
+
+    def _debug_enabled(self) -> bool:
+        """Whether debug logs are enabled for memory construction."""
+        return os.environ.get("MEMBUILDER_DEBUG", "").lower() in {"1", "true", "yes", "on"}
+
+    def _debug_log(self, tag: str, message: str) -> None:
+        """Print guarded debug log."""
+        if self._debug_enabled():
+            print(f"  [DEBUG:{tag}] {message}", flush=True)
+
+    def _parse_json_with_repair(self, text: str, debug_tag: str = "agent") -> Tuple[Any, str]:
+        """Parse JSON with lightweight repairs for near-valid model outputs."""
+        import re
+
+        source = (text or "").strip()
+        if not source:
+            raise ValueError("Empty JSON text after cleaning.")
+
+        candidates = [source]
+
+        # Common repair #1: remove trailing commas before } or ]
+        c1 = re.sub(r",(\s*[}\]])", r"\1", source)
+        if c1 not in candidates:
+            candidates.append(c1)
+
+        # Common repair #2: missing comma between adjacent objects: } { -> }, {
+        c2 = re.sub(r"(\})(\s*)(\{)", r"\1,\2\3", c1)
+        if c2 not in candidates:
+            candidates.append(c2)
+
+        # Common repair #3: missing comma between array close and next object: ] { -> ], {
+        c3 = re.sub(r"(\])(\s*)(\{)", r"\1,\2\3", c2)
+        if c3 not in candidates:
+            candidates.append(c3)
+
+        last_err = None
+        for idx, candidate in enumerate(candidates, 1):
+            try:
+                parsed = json.loads(candidate)
+                if idx > 1:
+                    self._debug_log(debug_tag, f"json_repair_applied=variant_{idx}")
+                return parsed, candidate
+            except Exception as e:
+                last_err = e
+                # Heuristic repair using json error position for missing comma cases.
+                if isinstance(e, json.JSONDecodeError) and "Expecting ',' delimiter" in str(e):
+                    pos = e.pos
+                    left = pos - 1
+                    while left >= 0 and candidate[left].isspace():
+                        left -= 1
+                    right = pos
+                    while right < len(candidate) and candidate[right].isspace():
+                        right += 1
+                    left_ch = candidate[left] if left >= 0 else ""
+                    right_ch = candidate[right] if right < len(candidate) else ""
+                    self._debug_log(
+                        debug_tag,
+                        f"json_error_pos={pos}, left='{left_ch}', right='{right_ch}', line={e.lineno}, col={e.colno}"
+                    )
+                    if left_ch in {'"', '}', ']'} and right_ch in {'"', '{', '['}:
+                        candidate2 = candidate[:right] + "," + candidate[right:]
+                        try:
+                            parsed = json.loads(candidate2)
+                            self._debug_log(debug_tag, "json_repair_applied=insert_comma_at_error_pos")
+                            return parsed, candidate2
+                        except Exception as e2:
+                            last_err = e2
+
+        raise last_err
+
+    def _retry_with_json_validation(self, prompt: str, max_retries: int = 10, debug_tag: str = "agent") -> str:
         """Unified retry mechanism with JSON validation."""
         import time
+        prompt_preview = (prompt or "")[:200].replace("\n", " ")
+        self._debug_log(debug_tag, f"prompt_len={len(prompt or '')}, prompt_preview={prompt_preview}")
         
         for attempt in range(max_retries):
             try:
@@ -288,15 +377,21 @@ class MemorySystem:
                 
                 if not response:
                     raise ValueError("Empty response from LLM")
+
+                raw_preview = response[:220].replace("\n", " ")
+                self._debug_log(debug_tag, f"attempt={attempt + 1}, raw_len={len(response)}, raw_preview={raw_preview}")
                 
                 # Clean the response
                 clean_response = self._clean_json_response(response)
+                clean_preview = clean_response[:220].replace("\n", " ")
+                self._debug_log(debug_tag, f"attempt={attempt + 1}, clean_len={len(clean_response)}, clean_preview={clean_preview}")
                 
                 # Validate JSON
-                json.loads(clean_response)
-                return clean_response
+                _, valid_json = self._parse_json_with_repair(clean_response, debug_tag=debug_tag)
+                return valid_json
                 
             except Exception as e:
+                self._debug_log(debug_tag, f"attempt={attempt + 1}, error={type(e).__name__}: {str(e)[:300]}")
                 if attempt < max_retries - 1:
                     wait_time = min(0.5 * (2 ** attempt), 16.0)  # 最高16s
                     print(f"  ⚠️ LLM调用失败 (尝试 {attempt + 1}/{max_retries}): {str(e)[:80]}, {wait_time:.1f}s后重试...", flush=True)
@@ -358,21 +453,25 @@ class MemorySystem:
                 executor.submit(self._semantic_agent, messages, user_id): "semantic",
                 executor.submit(self._procedural_agent, messages, user_id): "procedural"
             }
-            
-            for future in as_completed(futures, timeout=300):
-                agent_type = futures[future]
-                try:
-                    if agent_type == "core":
-                        op_type, _ = future.result()
-                        operation_stats['core'] = {op_type: 1} if op_type else {}
-                    else:
-                        memories, stats = future.result()
-                        searchable_memories.extend(memories)
-                        for op, count in stats.items():
-                            if op in operation_stats[agent_type]:
-                                operation_stats[agent_type][op] += count
-                except Exception as e:
-                    print(f"  Error in {agent_type} agent: {str(e)[:100]}")
+            try:
+                for future in as_completed(futures, timeout=300):
+                    agent_type = futures[future]
+                    try:
+                        if agent_type == "core":
+                            op_type, _ = future.result()
+                            operation_stats['core'] = {op_type: 1} if op_type else {}
+                        else:
+                            memories, stats = future.result()
+                            searchable_memories.extend(memories)
+                            for op, count in stats.items():
+                                if op in operation_stats[agent_type]:
+                                    operation_stats[agent_type][op] += count
+                    except Exception as e:
+                        print(f"  Error in {agent_type} agent: {str(e)[:100]}")
+            except FuturesTimeoutError:
+                unfinished = [name for f, name in futures.items() if not f.done()]
+                self._debug_log("agents", f"timeout=300s, unfinished={unfinished}")
+                raise
         
         # Store searchable memories in vector database
         results = []
@@ -502,7 +601,14 @@ Provide a concise, direct answer based on the available information, or state "N
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            formatted.append(f"{role}: {content}")
+            if role == "user":
+                formatted.append(f"[REAL_USER]: {content}")
+            elif role == "assistant":
+                formatted.append(f"[AI_ASSISTANT]: {content}")
+            elif role == "system":
+                formatted.append(f"[SYSTEM_INSTRUCTION]: {content}")
+            else:
+                formatted.append(f"[OTHER_ROLE:{role}]: {content}")
         return "\n".join(formatted)
     
     def _get_existing_memories(self, memory_type: str, user_id: str, 
@@ -527,6 +633,7 @@ Provide a concise, direct answer based on the available information, or state "N
     def _core_agent(self, messages: List[Dict], user_id: str) -> Tuple[str, str]:
         """Core Memory Agent: Manage persistent user profile."""
         formatted_messages = self._format_messages(messages)
+        core_snapshot = self.core_memory.human
         
         template = Template(self.prompts["core"])
         prompt = template.render(
@@ -536,19 +643,12 @@ Provide a concise, direct answer based on the available information, or state "N
         )
         
         try:
-            response = self.llm_client.chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                response_format={"type": "json_object"}
-            )
-            
-            # 检查响应是否为空
-            if not response or not response.strip():
-                print(f"  Core Agent warning: Empty response from LLM, skipping")
-                return ("SKIP", self.core_memory.human)
-            
+            # Enforce strict JSON output and retry/repair logic for core agent as well.
+            response = self._retry_with_json_validation(prompt, debug_tag="core_agent")
             result = json.loads(response)
-            operation = result.get("operation", "APPEND")
+            operation = str(result.get("operation", "APPEND")).upper().strip()
+            if operation not in {"APPEND", "REPLACE", "REWRITE", "SKIP"}:
+                raise ValueError(f"Invalid core operation: {operation}")
             
             # Apply operation
             if operation == "APPEND":
@@ -581,10 +681,11 @@ Provide a concise, direct answer based on the available information, or state "N
             return (operation, self.core_memory.human)
             
         except json.JSONDecodeError as e:
+            self.core_memory.human = core_snapshot
             print(f"  Core Agent JSON error: {str(e)[:100]}")
-            print(f"    Response preview: {response[:200] if response else '[Empty]'}")
             return ("ERROR", "")
         except Exception as e:
+            self.core_memory.human = core_snapshot
             print(f"  Core Agent error: {str(e)[:100]}")
             return ("ERROR", "")
     
@@ -655,7 +756,7 @@ Provide a concise, direct answer based on the available information, or state "N
         
         try:
             # Use unified retry mechanism with JSON validation
-            response = self._retry_with_json_validation(prompt)
+            response = self._retry_with_json_validation(prompt, debug_tag=f"{memory_type}_agent")
             
             # Debug: check response type
             if not response:
@@ -663,24 +764,48 @@ Provide a concise, direct answer based on the available information, or state "N
                 return [], stats
             
             result = json.loads(response)
-            
-            # Ensure result is a dict (some models return string or list)
-            if not isinstance(result, dict):
-                print(f"  ⚠️ {memory_type.capitalize()} Agent: 响应不是JSON对象 (type={type(result).__name__})，跳过")
+
+            if isinstance(result, dict):
+                operations = result.get("operations", [])
+            elif isinstance(result, list):
+                operations = result
+            else:
+                print(f"  ⚠️ {memory_type.capitalize()} Agent: 无法识别的响应类型 (type={type(result).__name__})，跳过")
+                return [], stats
+
+            if not isinstance(operations, list):
+                print(f"  ⚠️ {memory_type.capitalize()} Agent: operations 不是列表，跳过")
                 return [], stats
             
-            operations = result.get("operations", [])
-            
             for op in operations:
-                # Ensure op is a dict
-                if not isinstance(op, dict):
+                # Support both dict format and compact list format:
+                #   {"action":"ADD","memory":"..."}
+                #   ["ADD", "memory text"]
+                #   ["UPDATE", "old memory", "new memory"] (optional old_memory)
+                if isinstance(op, dict):
+                    action = str(op.get("action", "")).upper().strip()
+                    payload = op
+                elif isinstance(op, (list, tuple)) and len(op) >= 1:
+                    action = str(op[0]).upper().strip()
+                    payload = {}
+                    if action == "ADD":
+                        payload["memory"] = op[1] if len(op) >= 2 else ""
+                    elif action in ["UPDATE", "MERGE"]:
+                        if len(op) >= 3:
+                            payload["old_memory"] = op[1]
+                            payload["new_memory"] = op[2]
+                        elif len(op) >= 2:
+                            payload["new_memory"] = op[1]
+                    elif action == "SKIP":
+                        pass
+                else:
                     continue
-                action = op.get("action", "")
+
                 if action in stats:
                     stats[action] += 1
                 
                 if action == "ADD":
-                    memory = op.get("memory", "")
+                    memory = payload.get("memory", "")
                     # Ensure memory is string (some models return dict)
                     if isinstance(memory, dict):
                         memory = json.dumps(memory, ensure_ascii=False)
@@ -690,7 +815,7 @@ Provide a concise, direct answer based on the available information, or state "N
                         memories.append(memory)
                         
                 elif action in ["UPDATE", "MERGE"]:
-                    new_memory = op.get("new_memory", "")
+                    new_memory = payload.get("new_memory", "")
                     # Ensure new_memory is string
                     if isinstance(new_memory, dict):
                         new_memory = json.dumps(new_memory, ensure_ascii=False)
