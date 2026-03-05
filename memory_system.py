@@ -360,6 +360,115 @@ class MemorySystem:
 
         raise last_err
 
+    def _core_secondary_local_repair(self, text: str) -> Optional[str]:
+        """Best-effort local repair for malformed Core agent JSON."""
+        import re
+
+        source = (text or "").strip()
+        if not source:
+            return None
+
+        start = source.find("{")
+        end = source.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+        blob = source[start:end + 1]
+
+        op_match = re.search(r'"operation"\s*:\s*"([^"]+)"', blob, flags=re.IGNORECASE)
+        if not op_match:
+            return None
+        operation = op_match.group(1).strip().upper()
+        if operation not in {"APPEND", "REPLACE", "REWRITE", "SKIP"}:
+            return None
+
+        known_keys = ["operation", "content", "old_text", "new_text", "reason"]
+
+        def extract_string_field(key: str) -> Optional[str]:
+            key_match = re.search(rf'"{re.escape(key)}"\s*:', blob)
+            if not key_match:
+                return None
+            colon_pos = blob.find(":", key_match.start())
+            if colon_pos == -1:
+                return None
+            quote_start = blob.find('"', colon_pos + 1)
+            if quote_start == -1:
+                return None
+
+            next_positions = []
+            scan_start = quote_start + 1
+            for next_key in known_keys:
+                if next_key == key:
+                    continue
+                m = re.search(rf',\s*"{re.escape(next_key)}"\s*:', blob[scan_start:])
+                if m:
+                    next_positions.append(scan_start + m.start())
+
+            boundary = min(next_positions) if next_positions else blob.rfind("}")
+            if boundary == -1 or boundary <= quote_start:
+                boundary = len(blob)
+
+            quote_end = blob.rfind('"', quote_start + 1, boundary)
+            if quote_end == -1 or quote_end <= quote_start:
+                return None
+            return blob[quote_start + 1:quote_end]
+
+        payload: Dict[str, Any] = {"operation": operation}
+        if operation in {"APPEND", "REWRITE"}:
+            content = extract_string_field("content")
+            if content is None:
+                return None
+            payload["content"] = content
+        elif operation == "REPLACE":
+            old_text = extract_string_field("old_text")
+            new_text = extract_string_field("new_text")
+            if old_text is None or new_text is None:
+                return None
+            payload["old_text"] = old_text
+            payload["new_text"] = new_text
+        elif operation == "SKIP":
+            reason = extract_string_field("reason")
+            if reason is not None:
+                payload["reason"] = reason
+
+        return json.dumps(payload, ensure_ascii=False)
+
+    def _core_secondary_regenerate_json(self, broken_json: str, debug_tag: str = "core_agent") -> Optional[str]:
+        """One-shot Core-specific JSON regeneration from malformed output."""
+        prompt = f"""You are a strict JSON repair tool.
+Given a malformed JSON produced by a memory agent, return ONE valid JSON object only.
+
+Allowed schemas:
+1) APPEND/REWRITE: {{"operation":"APPEND|REWRITE","content":"..."}}
+2) REPLACE: {{"operation":"REPLACE","old_text":"...","new_text":"..."}}
+3) SKIP: {{"operation":"SKIP","reason":"..."}}
+
+Rules:
+- Output JSON only, no markdown, no explanation.
+- Escape all internal double quotes inside string values.
+- Keep original meaning; do not invent new facts.
+
+Malformed JSON:
+{broken_json[:12000]}
+"""
+        try:
+            response = self.llm_client.chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                response_format={"type": "json_object"},
+            )
+            clean = self._clean_json_response(response)
+            parsed, valid_json = self._parse_json_with_repair(clean, debug_tag=debug_tag)
+            if not isinstance(parsed, dict):
+                return None
+            operation = str(parsed.get("operation", "")).upper().strip()
+            if operation not in {"APPEND", "REPLACE", "REWRITE", "SKIP"}:
+                return None
+            self._debug_log(debug_tag, "core_secondary_repair_applied=regenerate_json")
+            return valid_json
+        except Exception as e:
+            self._debug_log(debug_tag, f"core_secondary_regen_failed={type(e).__name__}: {str(e)[:120]}")
+            return None
+
     def _retry_with_json_validation(self, prompt: str, max_retries: int = 10, debug_tag: str = "agent") -> str:
         """Unified retry mechanism with JSON validation."""
         import time
@@ -386,9 +495,22 @@ class MemorySystem:
                 clean_preview = clean_response[:220].replace("\n", " ")
                 self._debug_log(debug_tag, f"attempt={attempt + 1}, clean_len={len(clean_response)}, clean_preview={clean_preview}")
                 
-                # Validate JSON
-                _, valid_json = self._parse_json_with_repair(clean_response, debug_tag=debug_tag)
-                return valid_json
+                # Validate JSON (with Core-specific secondary fallback).
+                try:
+                    _, valid_json = self._parse_json_with_repair(clean_response, debug_tag=debug_tag)
+                    return valid_json
+                except Exception as parse_err:
+                    if debug_tag == "core_agent" and isinstance(parse_err, json.JSONDecodeError):
+                        repaired = self._core_secondary_local_repair(clean_response)
+                        if repaired:
+                            _, valid_json = self._parse_json_with_repair(repaired, debug_tag=debug_tag)
+                            self._debug_log(debug_tag, "core_secondary_repair_applied=local_salvage")
+                            return valid_json
+
+                        regenerated = self._core_secondary_regenerate_json(clean_response, debug_tag=debug_tag)
+                        if regenerated:
+                            return regenerated
+                    raise parse_err
                 
             except Exception as e:
                 self._debug_log(debug_tag, f"attempt={attempt + 1}, error={type(e).__name__}: {str(e)[:300]}")
