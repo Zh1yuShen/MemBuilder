@@ -714,8 +714,9 @@ Provide a concise, direct answer based on the available information, or state "N
                 temperature=0.0
             )
         except Exception as e:
+            # Do not serialize transient API failures as a normal answer string.
             print(f"❌ Error generating answer: {str(e)[:100]}")
-            return f"Error: {str(e)[:100]}"
+            raise
     
     def _format_messages(self, messages: List[Dict]) -> str:
         """Format messages for prompt consumption."""
