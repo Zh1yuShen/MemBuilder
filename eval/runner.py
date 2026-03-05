@@ -558,12 +558,18 @@ def run_evaluation(args) -> int:
     
     # ========== 加载数据 ==========
     print("\n📚 加载数据...")
+    # --questions limits question count, but for PerLTQA we need a
+    # dedicated user/character cap to avoid accidentally truncating users.
+    dataset_num_samples = args.questions
+    if args.dataset in ('perltqa',):
+        dataset_num_samples = args.num_users
+
     data = load_dataset(
         dataset_name=args.dataset,
         conv_id=args.conv_id,
         sample_id=args.sample_id,
         character_id=getattr(args, 'character_id', None),
-        num_samples=args.questions,
+        num_samples=dataset_num_samples,
         subset_file=subset_file,
         sample_ids=split_sample_ids
     )
@@ -1008,7 +1014,8 @@ def main():
     
     # Limit options
     parser.add_argument('--sessions', type=int, default=None, help='Limit sessions to build')
-    parser.add_argument('--questions', type=int, default=None, help='Limit questions to test')
+    parser.add_argument('--questions', type=int, default=None, help='Limit questions to test (per user for perltqa)')
+    parser.add_argument('--num-users', type=int, default=None, help='Limit users/characters to evaluate (perltqa)')
     
     # Model configuration
     parser.add_argument('--model', default=None, help='LLM model for memory agents')
