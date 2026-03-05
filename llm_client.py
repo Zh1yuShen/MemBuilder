@@ -20,6 +20,7 @@ Configuration:
     - OPENAI_BASE_URL: Base URL (optional, defaults to OpenAI)
 """
 
+import json
 import os
 from typing import Any, Dict, List, Optional
 
@@ -37,6 +38,44 @@ class LLMClient:
     - Local proxy servers
     - Any other OpenAI-compatible service
     """
+
+    @staticmethod
+    def _normalize_message_content(content: Any) -> str:
+        """Normalize OpenAI message content into plain text."""
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+                elif isinstance(item, str):
+                    parts.append(item)
+            return "".join(parts).strip()
+        return str(content).strip()
+
+    @staticmethod
+    def _extract_json_text(content: str) -> str:
+        """Extract JSON object text from mixed model output."""
+        import re
+
+        clean = (content or "").strip()
+        if not clean:
+            return clean
+
+        # Remove markdown fences if present.
+        clean = re.sub(r'^```(?:json)?\s*|\s*```$', '', clean).strip()
+
+        # Prefer the first JSON object block if model prepends analysis text.
+        start = clean.find("{")
+        end = clean.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return clean[start:end + 1].strip()
+        return clean
     
     def __init__(
         self,
@@ -107,8 +146,26 @@ class LLMClient:
         if response_format:
             request_kwargs["response_format"] = response_format
         
-        response = self.client.chat.completions.create(**request_kwargs)
-        return response.choices[0].message.content.strip()
+        try:
+            response = self.client.chat.completions.create(**request_kwargs)
+        except Exception:
+            # Some OpenAI-compatible servers (e.g., vLLM) may not support response_format.
+            if "response_format" in request_kwargs:
+                request_kwargs.pop("response_format", None)
+                response = self.client.chat.completions.create(**request_kwargs)
+            else:
+                raise
+        raw_content = response.choices[0].message.content
+        content = self._normalize_message_content(raw_content)
+        
+        # Validate JSON if required
+        if response_format and response_format.get("type") == "json_object":
+            content = self._extract_json_text(content)
+            if not content:
+                raise ValueError("Model returned empty content for json_object response.")
+            json.loads(content)  # Validate JSON
+        
+        return content
     
     def get_embeddings(
         self,
