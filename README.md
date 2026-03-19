@@ -350,6 +350,10 @@ If you find this work helpful, please cite:
 }
 ```
 
+## Note
+
+The lack of open-source code in the Memory + RL field has been a recurring frustration for researchers like us. For example, Memory-R1 launched a repository alongside its paper with a "code coming soon" promise, yet no substantive code has been released to date, and community inquiries on the matter have so far gone unanswered. Many other works in the field that report strong results have similarly not released their code, and the impact goes beyond duplicated effort — follow-up work is often left to cite numbers from the original paper for indirect comparison, making it difficult to evaluate methods fairly under unified experimental conditions. We encourage more researchers to release code and training pipelines alongside their work.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
