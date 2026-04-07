@@ -4,6 +4,10 @@
 
 **Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Rewards**
 
+![ACL 2026 Main](https://img.shields.io/badge/ACL%202026-Main%20Conference-blue.svg)
+
+🎉 **MemBuilder has been accepted to ACL 2026 (Main Conference)!**
+
 ## What is MemBuilder?
 
 MemBuilder trains LLMs to build **multi-dimensional long-term memory** from conversations. It uses **ADRPO** (Attributed Dense Reward Policy Optimization) to solve two key challenges:

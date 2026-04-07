@@ -4,6 +4,10 @@
 
 **基于归因密集奖励的大模型长期记忆构建强化学习框架**
 
+![ACL 2026 Main](https://img.shields.io/badge/ACL%202026-Main%20Conference-blue.svg)
+
+🎉 **MemBuilder 已被 ACL 2026 主会场接收！**
+
 ## MemBuilder是什么？
 
 MemBuilder训练大语言模型从对话中构建**多维度长期记忆**。使用**ADRPO**（归因密集奖励策略优化）解决两个关键挑战：
