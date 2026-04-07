@@ -1,12 +1,8 @@
-# MemBuilder
+# [ACL 2026] MemBuilder
 
 [中文版](README_zh.md) | English | [📄 Paper](https://arxiv.org/abs/2601.05488)
 
 **Reinforcing LLMs for Long-Term Memory Construction via Attributed Dense Rewards**
-
-![ACL 2026 Main](https://img.shields.io/badge/ACL%202026-Main%20Conference-blue.svg)
-
-🎉 **MemBuilder has been accepted to ACL 2026 (Main Conference)!**
 
 ## What is MemBuilder?
 

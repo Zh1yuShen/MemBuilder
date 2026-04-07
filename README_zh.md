@@ -1,12 +1,8 @@
-# MemBuilder
+# [ACL 2026] MemBuilder
 
 [English](README.md) | 中文版 | [📄 论文](https://arxiv.org/abs/2601.05488)
 
 **基于归因密集奖励的大模型长期记忆构建强化学习框架**
-
-![ACL 2026 Main](https://img.shields.io/badge/ACL%202026-Main%20Conference-blue.svg)
-
-🎉 **MemBuilder 已被 ACL 2026 主会场接收！**
 
 ## MemBuilder是什么？
 
