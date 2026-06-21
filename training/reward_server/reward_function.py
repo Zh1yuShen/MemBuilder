@@ -1042,7 +1042,7 @@ def _compute_agent_length_penalty(
         # Ratio scheme: compare to expert
         expert_output = ground_truth.get('expert_output', {})
         expert_memories = expert_output.get('memories_added', [])
-        expert_tokens = sum(len(str(m)) for m in expert_memories) if expert_memories else 0
+        expert_tokens = sum(_count_tokens(str(m)) for m in expert_memories) if expert_memories else 0
         
         if expert_tokens == 0:
             return 0.0
@@ -1079,7 +1079,7 @@ def _count_content_tokens(response: str, agent_type: str) -> int:
         
         if agent_type == 'core':
             content = parsed.get('content', '') or ''
-            return len(content) // 4  # Approximate tokens
+            return _count_tokens(content)
         else:
             agent_data = parsed.get(agent_type, parsed)
             operations = agent_data.get('operations', [])
@@ -1087,10 +1087,10 @@ def _count_content_tokens(response: str, agent_type: str) -> int:
             total = 0
             for op in operations:
                 mem = op.get('memory', '') or op.get('new_memory', '')
-                total += len(str(mem))
-            return total // 4
+                total += _count_tokens(str(mem))
+            return total
     except:
-        return len(response) // 4
+        return _count_tokens(response)
 
 
 def _save_reward_details(
